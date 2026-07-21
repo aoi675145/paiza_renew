@@ -671,7 +671,7 @@ def run():
             "\U0001f3ae PaizaCloud \u91cd\u5efa",
             f"\u23f0 \u901a\u77e5\u65f6\u95f4\uff1a{bj_now()}",
             f"\U0001f4ca \u5bb9\u5668\uff1a{ok_em if cid else no_em} {cid[:12] if cid else fail}",
-            f"\U0001f4ca \u542f\u52a8\u811a\u672c\uff1a{nezha_status}",
+            f"\U0001f4ca \u811a\u672c\uff1a{nezha_status}",
             f"\U0001f4ca \u4fdd\u6d3b\uff1a{ok_em + ' ' + running if vps_ok else no_em + ' ' + deploy_fail}",
         ]
         send_tg("\n".join(lines))
