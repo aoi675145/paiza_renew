@@ -13,7 +13,7 @@ from selenium.webdriver.chrome.options import Options
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 log = logging.getLogger(__name__)
 
-JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2YTViYTFmMGIxNTE1MzY2ODM4ODczMDgiLCJyb2xlIjoidXNlciIsInNpZ25BdCI6MTc4NDQ4NTA3NjQxNCwiaWF0IjoxNzg0NDg1MDc2fQ.zp4rx4wkDvpeFe6O8YLSCQeuZVGYmz2uAO3T5XWhtJM"
+JWT_TOKEN = os.environ.get("PAIZA_JWT", "")
 
 NEZHA_SERVER = os.environ.get("NEZHA_SERVER", "")
 NEZHA_KEY = os.environ.get("NEZHA_KEY", "")
@@ -372,9 +372,10 @@ def delete_container(cid):
 
 
 def update_vps_config(cid, token, container_ip=None, container_ssh_port=None):
-    vps_host = os.environ.get("VPS_HOST") or "31.22.111.169"
-    vps_port = int(os.environ.get("VPS_PORT") or "20973")
-    vps_pass = os.environ.get("VPS_PASSWORD") or "A*yS7Y5U^7yZmLdv"
+    _vps = (os.environ.get("VPS") or "").split(",")
+    vps_host = _vps[0] if len(_vps) > 0 else ""
+    vps_port = int(_vps[1]) if len(_vps) > 1 else 0
+    vps_pass = _vps[2] if len(_vps) > 2 else ""
     try:
         import paramiko
         client = paramiko.SSHClient()
@@ -383,7 +384,7 @@ def update_vps_config(cid, token, container_ip=None, container_ssh_port=None):
 
         config = f"""PAIZA_CONTAINER_ID={cid}
 PAIZA_CONTAINER_TOKEN={token}
-PAIZA_TOKEN={JWT_TOKEN}
+PAIZA_JWT={JWT_TOKEN}
 """
         stdin, stdout, stderr = client.exec_command(f"cat > /root/paiza_config.txt")
         stdin.write(config)
@@ -458,7 +459,7 @@ PAIZA_TOKEN={JWT_TOKEN}
         cmd = f"""sshpass -p '{vps_pass}' ssh -o StrictHostKeyChecking=no root@{vps_host} -p {vps_port} 'cat > /root/paiza_config.txt << EOF
 PAIZA_CONTAINER_ID={cid}
 PAIZA_CONTAINER_TOKEN={token}
-PAIZA_TOKEN={JWT_TOKEN}
+PAIZA_JWT={JWT_TOKEN}
 EOF
 pkill -f "python3 paiza_renew.py" 2>/dev/null || true
 nohup python3 /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &'"""

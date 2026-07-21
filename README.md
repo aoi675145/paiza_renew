@@ -12,6 +12,8 @@
 | `NEZHA_SERVER` | ✅ | 哪吒探针服务器地址，格式 `域名:端口` |
 | `NEZHA_KEY` | ✅ | 哪吒探针 Client Secret |
 | `NZ_UUID` | ✅ | 哪吒探针客户端 UUID |
+| `PAIZA_JWT` | ✅ | PaizaCloud 账号 JWT Token |
+| `VPS` | ✅ | VPS 连接信息，格式 `IP,端口,密码` |
 | `TG_BOT` | ❌ | Telegram 通知，格式 `chat_id,bot_token`；未填写时不发通知 |
 
 
