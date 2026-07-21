@@ -1,0 +1,52 @@
+name: PaizaCloud Auto-Create
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 1 */1 *'
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Enable WARP
+        uses: fscarmen/warp-on-actions@v1.3
+        with:
+          stack: dual
+          mode: client
+      - name: Fix DNS
+        run: |
+          sudo systemctl stop systemd-resolved 2>/dev/null || true
+          sudo systemctl disable systemd-resolved 2>/dev/null || true
+          sudo rm -f /etc/resolv.conf
+          echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 1.0.0.1" | sudo tee /etc/resolv.conf
+          curl -s --max-time 10 https://www.cloudflare.com/cdn-cgi/trace | grep -E 'warp=|loc=' || true
+      - name: Install system deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb p7zip-full ffmpeg
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq google-chrome-stable
+      - name: Install Python deps
+        run: |
+          pip install selenium requests SpeechRecognition pydub chromedriver-autoinstaller paramiko
+          python -c "import chromedriver_autoinstaller; chromedriver_autoinstaller.install()"
+          sudo apt-get install -y -qq sshpass
+      - name: Create container
+        env:
+          TG_BOT: ${{ secrets.TG_BOT }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python paiza_create.py
+      - name: Upload screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots
+          path: "screenshots/*.png"

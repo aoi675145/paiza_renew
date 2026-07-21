@@ -1,0 +1,39 @@
+name: PaizaCloud Auto-Create
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 1 */1 *'
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install Chrome
+        run: |
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update -q
+          sudo apt-get install -y google-chrome-stable xvfb
+      - name: Install Python deps
+        run: pip install seleniumbase
+      - name: Install ChromeDriver
+        run: seleniumbase install chromedriver
+      - name: Download NopeCHA
+        run: |
+          wget -q "https://github.com/NopeCHALLC/nopecha-extension/releases/latest/download/chromium.zip"
+          unzip -q chromium.zip -d nopecha_raw
+          MANIFEST=$(find nopecha_raw -name "manifest.json" | head -1)
+          mkdir -p nopecha
+          cp -r "$(dirname $MANIFEST)/." nopecha/
+          rm -rf nopecha_raw chromium.zip
+      - name: Create container
+        env:
+          PAIZA_TOKEN: ${{ secrets.PAIZA_TOKEN }}
+          TG_BOT: ${{ secrets.TG_BOT }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PASS: ${{ secrets.VPS_PASS }}
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python .github/scripts/paiza_create.py
