@@ -397,6 +397,15 @@ PAIZA_JWT={JWT_TOKEN}
         py = stdout2.read().decode().strip()
         log.info(f"VPS Python: {py}")
 
+        # Auto-install python if missing
+        if py == 'no python':
+            log.info("Python not found on VPS, installing...")
+            client.exec_command("apk add python3 2>/dev/null || apt-get install -y python3 2>/dev/null || true")
+            time.sleep(8)
+            stdin2, stdout2, stderr2 = client.exec_command("which python3 || which python || echo 'no python'")
+            py = stdout2.read().decode().strip()
+            log.info(f"VPS Python after install: {py}")
+
         # Ensure requests module is installed
         client.exec_command(f"{py} -c 'import requests' 2>/dev/null || pip3 install requests 2>/dev/null || {py} -m pip install requests 2>/dev/null || true")
         time.sleep(3)
