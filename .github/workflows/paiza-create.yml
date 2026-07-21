@@ -24,7 +24,7 @@ jobs:
           sudo rm -f /etc/resolv.conf
           echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 1.0.0.1" | sudo tee /etc/resolv.conf
           curl -s --max-time 10 https://www.cloudflare.com/cdn-cgi/trace | grep -E 'warp=|loc=' || true
-      - name: Install system deps
+      - name: 安装系统依赖（Chrome、ffmpeg、xvfb）
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb p7zip-full ffmpeg
@@ -32,16 +32,19 @@ jobs:
           echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update -qq
           sudo apt-get install -y -qq google-chrome-stable
-      - name: Install Python deps
+      - name: 安装 Python 依赖（selenium、reCAPTCHA 音频破解、paramiko）
         run: |
           pip install selenium requests SpeechRecognition pydub chromedriver-autoinstaller paramiko
           python -c "import chromedriver_autoinstaller; chromedriver_autoinstaller.install()"
           sudo apt-get install -y -qq sshpass
-      - name: Create container
+      - name: 创建容器 + 安装哪吒探针
         env:
           TG_BOT: ${{ secrets.TG_BOT }}
+          NZ_SERVER: ${{ secrets.NZ_SERVER }}
+          NZ_CLIENT_SECRET: ${{ secrets.NZ_CLIENT_SECRET }}
+          NZ_UUID: ${{ secrets.NZ_UUID }}
         run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python paiza_create.py
-      - name: Upload screenshot
+      - name: 上传调试截图
         if: always()
         uses: actions/upload-artifact@v4
         with:

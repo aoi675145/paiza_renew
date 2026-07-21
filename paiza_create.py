@@ -15,6 +15,10 @@ log = logging.getLogger(__name__)
 
 JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2YTViYTFmMGIxNTE1MzY2ODM4ODczMDgiLCJyb2xlIjoidXNlciIsInNpZ25BdCI6MTc4NDQ4NTA3NjQxNCwiaWF0IjoxNzg0NDg1MDc2fQ.zp4rx4wkDvpeFe6O8YLSCQeuZVGYmz2uAO3T5XWhtJM"
 
+NZ_SERVER = os.environ.get("NZ_SERVER", "")
+NZ_CLIENT_SECRET = os.environ.get("NZ_CLIENT_SECRET", "")
+NZ_UUID = os.environ.get("NZ_UUID", "")
+
 TG_BOT = os.environ.get("TG_BOT", "")
 _tg = [x.strip() for x in TG_BOT.split(",")] if TG_BOT else []
 TG_CHAT_ID = _tg[0] if len(_tg) > 0 else ""
@@ -432,11 +436,11 @@ PAIZA_TOKEN={JWT_TOKEN}
                 # Ensure sshpass is available on VPS
                 client.exec_command("which sshpass 2>/dev/null || (apk add sshpass 2>/dev/null || apt-get install sshpass -y 2>/dev/null || true)")
                 time.sleep(2)
-                NEZHA_CMD = ("curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
-                             "chmod +x agent.sh && "
-                             "env NZ_SERVER=nz.wbxl.dpdns.org:443 NZ_TLS=true "
-                             "NZ_CLIENT_SECRET=eQznXSiec5C101xYWVMZQiTrpVUnEAFc "
-                             "NZ_UUID=44bf39ae-5619-9943-ff2e-560e3a340ff2 ./agent.sh")
+                NEZHA_CMD = (f"curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
+                             f"chmod +x agent.sh && "
+                             f"env NZ_SERVER={NZ_SERVER} NZ_TLS=true "
+                             f"NZ_CLIENT_SECRET={NZ_CLIENT_SECRET} "
+                             f"NZ_UUID={NZ_UUID} ./agent.sh")
                 install_cmd = f'sshpass -p "{token}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@{container_ip} -p {container_ssh_port} "{NEZHA_CMD}" 2>&1 || true'
                 stdin_i, stdout_i, stderr_i = client.exec_command(install_cmd, timeout=120)
                 install_out = stdout_i.read().decode().strip()[-500:]
@@ -606,11 +610,11 @@ def run():
         log.info(f"最终 Token: {token[:20] if token else 'N/A'}...")
 
         # ── Open terminal and install Nezha agent ──
-        NEZHA_CMD = ("curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
-                     "chmod +x agent.sh && "
-                     "env NZ_SERVER=nz.wbxl.dpdns.org:443 NZ_TLS=true "
-                     "NZ_CLIENT_SECRET=eQznXSiec5C101xYWVMZQiTrpVUnEAFc "
-                     "NZ_UUID=44bf39ae-5619-9943-ff2e-560e3a340ff2 ./agent.sh")
+        NEZHA_CMD = (f"curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
+                     f"chmod +x agent.sh && "
+                     f"env NZ_SERVER={NZ_SERVER} NZ_TLS=true "
+                     f"NZ_CLIENT_SECRET={NZ_CLIENT_SECRET} "
+                     f"NZ_UUID={NZ_UUID} ./agent.sh")
         NEZHA_CMD = os.environ.get("NEZHA_CMD", NEZHA_CMD)
 
         log.info("打开终端，安装哪吒探针...")
@@ -705,10 +709,10 @@ def run():
 
             # Manually start agent (install script might fail on systemd in Docker)
             log.info("手动启动哪吒探针...")
-            START_CMD = ("nohup /opt/nezha/agent/nezha-agent "
-                         "-s nz.wbxl.dpdns.org:443 "
-                         "-p eQznXSiec5C101xYWVMZQiTrpVUnEAFc "
-                         "-d > /tmp/agent.log 2>&1 &")
+            START_CMD = (f"nohup /opt/nezha/agent/nezha-agent "
+                         f"-s {NZ_SERVER} "
+                         f"-p {NZ_CLIENT_SECRET} "
+                         f"-d > /tmp/agent.log 2>&1 &")
             type_text_js(START_CMD)
             time.sleep(5)
             type_text_sendkeys(START_CMD)
