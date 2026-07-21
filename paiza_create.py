@@ -383,10 +383,22 @@ PAIZA_TOKEN={JWT_TOKEN}
         stdin.channel.shutdown_write()
         time.sleep(2)
 
-        client.exec_command("pkill -f 'python3 paiza_renew.py' 2>/dev/null || true")
+        # Check if python3 exists, fallback to python
+        stdin2, stdout2, stderr2 = client.exec_command("which python3 || which python || echo 'no python'")
+        py = stdout2.read().decode().strip()
+        log.info(f"VPS python: {py}")
+
+        client.exec_command("pkill -f 'paiza_renew.py' 2>/dev/null || true")
         time.sleep(1)
-        client.exec_command("nohup python3 /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &")
-        time.sleep(2)
+        client.exec_command(f"nohup {py} /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &")
+        time.sleep(3)
+
+        # Verify it's running
+        stdin3, stdout3, stderr3 = client.exec_command("ps aux | grep paiza_renew | grep -v grep")
+        running = stdout3.read().decode().strip()
+        log.info(f"Keepalive running: {bool(running)}")
+        if running:
+            log.info(f"PID: {running[:100]}")
 
         client.close()
         log.info("VPS config updated, keepalive restarted")
@@ -555,43 +567,51 @@ def run():
             time.sleep(5)
             snap(driver, "workspace")
 
-            # Click Terminal button
-            driver.execute_script("""
+            # Click Terminal button using Angular controller
+            clicked = driver.execute_script("""
+                var scope = angular.element('.container-menu').scope();
+                if (scope && scope.wmController) {
+                    scope.wmController.openTerminal();
+                    return 'angular';
+                }
+                // fallback: find button with Terminal text
                 var btns = document.querySelectorAll('button');
                 for (var i = 0; i < btns.length; i++) {
                     if (btns[i].textContent.trim().toLowerCase().includes('terminal')) {
                         btns[i].click();
-                        return true;
+                        return 'dom';
                     }
                 }
                 return false;
             """)
-            time.sleep(6)
+            log.info(f"Terminal opened via: {clicked}")
+            time.sleep(8)
             snap(driver, "terminal-opened")
 
-            # Find the xterm helper textarea and type commands via Selenium send_keys
+            # Find terminal textarea - Paiza uses custom terminal, NOT xterm.js
             term_ta = None
-            for sel in [".xterm-helper-textarea", ".xterm textarea", "textarea.xterm-helper-textarea"]:
+            for sel in ["div.terminal textarea", "textarea[autocapitalize='none']", "div.terminal > textarea"]:
                 try:
                     term_ta = driver.find_element(By.CSS_SELECTOR, sel)
-                    if term_ta:
+                    if term_ta and term_ta.is_displayed():
                         break
                 except Exception:
                     pass
             if not term_ta:
-                # fallback: any visible textarea
-                term_ta = driver.find_element(By.CSS_SELECTOR, "textarea")
+                try:
+                    term_ta = driver.find_element(By.CSS_SELECTOR, "div.terminal textarea")
+                except Exception:
+                    pass
             log.info(f"Terminal textarea found: {term_ta is not None}")
 
             def type_text(text):
                 term_ta.send_keys(text + "\n")
+                log.info(f"Typed: {text[:50]}...")
 
-            # Kill existing tmux sessions that are NOT the terminal's own
-            # The web terminal runs in tmux, so don't kill-server
-            type_text("tmux ls 2>/dev/null | grep -v '^0:' | cut -d: -f1 | xargs -r tmux kill-session -t")
-            time.sleep(1)
+            # Wait for shell prompt to be ready, then install agent
+            time.sleep(2)
             type_text(NEZHA_CMD)
-            time.sleep(45)
+            time.sleep(60)
             snap(driver, "after-nezha-install")
 
             log.info("Nezha agent installation commands sent")
