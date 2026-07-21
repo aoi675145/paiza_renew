@@ -20,7 +20,6 @@
 ## 注意事项
 
 - **VPS 需要有 Python 环境**：脚本会自动尝试安装（`apk add python3` / `apt install python3`），但如果系统没有 `apk` 或 `apt` 会失败
-- **VPS 保活依赖哪吒配置**：容器每次重建会更新 VPS 上的 `paiza_config.txt` 并重启保活脚本
 - **容器 4 小时限制**：保活脚本会每 60 秒发 keepalive，满 4 小时后自动快照恢复；如果 VPS 失联容器会被回收
 - **Secrets 不全则 workflow 报错**：`NEZHA_SERVER` / `NEZHA_KEY` / `NZ_UUID` / `PAIZA_JWT` / `VPS` 必须填完才能运行
 
