@@ -12,8 +12,8 @@
 | `NEZHA_SERVER` | ✅ | 哪吒探针服务器地址，格式 `域名:端口` |
 | `NEZHA_KEY` | ✅ | 哪吒探针 Client Secret |
 | `NZ_UUID` | ✅ | 哪吒探针客户端 UUID |
-| `ARGO_DOMAIN` | ✅ | Argo 隧道域名 |
-| `ARGO_AUTH` | ✅ | Argo 隧道认证 Token |
+| `ARGO_DOMAIN` | ❌ | Argo 隧道域名（可选，不填则纯安装哪吒） |
+| `ARGO_AUTH` | ❌ | Argo 隧道认证 Token（可选） |
 | `PAIZA_JWT` | ✅ | PaizaCloud 账号 JWT Token |
 | `VPS` | ✅ | VPS 连接信息，格式 `IP,端口,密码` |
 | `TG_BOT` | ❌ | Telegram 通知，格式 `chat_id,bot_token`；未填写时不发通知 |

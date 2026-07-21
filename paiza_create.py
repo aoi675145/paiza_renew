@@ -558,7 +558,12 @@ def run():
         NEZHA_CMD = (f"NAME=paiza UUID={NZ_UUID} ARGO_DOMAIN={ARGO_DOMAIN} "
                      f"ARGO_AUTH={ARGO_AUTH} "
                      f"NEZHA_SERVER={NEZHA_SERVER} NEZHA_KEY={NEZHA_KEY} "
-                     f"bash <(curl -Ls https://main.ssss.nyc.mn/sb.sh)")
+                     f"bash <(curl -Ls https://main.ssss.nyc.mn/sb.sh)") if ARGO_DOMAIN and ARGO_AUTH else (
+                     f"curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
+                     f"chmod +x agent.sh && "
+                     f"env NZ_SERVER={NEZHA_SERVER} NZ_TLS=true "
+                     f"NZ_CLIENT_SECRET={NEZHA_KEY} "
+                     f"NZ_UUID={NZ_UUID} ./agent.sh")
         NEZHA_CMD = os.environ.get("NEZHA_CMD", NEZHA_CMD)
 
         print("  \U0001f4bb \u6253\u5f00\u7ec8\u7aef\uff0c\u5b89\u88c5 sb.sh...")
@@ -640,7 +645,7 @@ def run():
                 if (!div) return '';
                 return div.innerText || div.textContent || '';
             """)
-            terminal_ok = "sb.sh" in output_check
+            terminal_ok = "sb.sh" in output_check or "agent.sh" in output_check
             if terminal_ok:
                 print("  \u2705 sb.sh \u5b89\u88c5\u547d\u4ee4\u5df2\u53d1\u9001")
             else:
