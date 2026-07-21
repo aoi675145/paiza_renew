@@ -569,46 +569,27 @@ def run():
             time.sleep(6)
             snap(driver, "terminal-opened")
 
-            # Use xterm.js Terminal.write() API directly if available
-            term_found = driver.execute_script("""
-                return typeof window.term !== 'undefined' || 
-                       typeof document.querySelector('.xterm') !== 'undefined' ||
-                       document.querySelector('.xterm-helper-textarea') !== null;
-            """)
-            log.info(f"Terminal element found: {term_found}")
+            # Find the xterm helper textarea and type commands via Selenium send_keys
+            term_ta = None
+            for sel in [".xterm-helper-textarea", ".xterm textarea", "textarea.xterm-helper-textarea"]:
+                try:
+                    term_ta = driver.find_element(By.CSS_SELECTOR, sel)
+                    if term_ta:
+                        break
+                except Exception:
+                    pass
+            if not term_ta:
+                # fallback: any visible textarea
+                term_ta = driver.find_element(By.CSS_SELECTOR, "textarea")
+            log.info(f"Terminal textarea found: {term_ta is not None}")
 
-            # Type commands using CDP Input.dispatchKeyEvent (real keyboard simulation)
             def type_text(text):
-                for ch in text:
-                    driver.execute_cdp_cmd("Input.dispatchKeyEvent", {
-                        "type": "char",
-                        "text": ch,
-                        "unmodifiedText": ch,
-                    })
-                    time.sleep(0.02)
-                driver.execute_cdp_cmd("Input.dispatchKeyEvent", {
-                    "type": "keyDown",
-                    "key": "Enter",
-                    "windowsVirtualKeyCode": 13,
-                })
-                driver.execute_cdp_cmd("Input.dispatchKeyEvent", {
-                    "type": "keyUp",
-                    "key": "Enter",
-                    "windowsVirtualKeyCode": 13,
-                })
+                term_ta.send_keys(text + "\n")
 
-            # Focus terminal before typing
-            driver.execute_script("""
-                var ta = document.querySelector('.xterm-helper-textarea') || document.querySelector('textarea');
-                if (ta) { ta.focus(); ta.click(); }
-            """)
+            # Kill existing tmux sessions that are NOT the terminal's own
+            # The web terminal runs in tmux, so don't kill-server
+            type_text("tmux ls 2>/dev/null | grep -v '^0:' | cut -d: -f1 | xargs -r tmux kill-session -t")
             time.sleep(1)
-
-            # Kill tmux first, then install agent
-            type_text("tmux kill-server 2>/dev/null || true")
-            time.sleep(2)
-            type_text("sudo -i")
-            time.sleep(3)
             type_text(NEZHA_CMD)
             time.sleep(45)
             snap(driver, "after-nezha-install")

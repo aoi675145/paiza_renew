@@ -41,7 +41,7 @@ def trigger_github_workflow():
     logger.info('Triggering GitHub Actions workflow...')
     url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/paiza-create.yml/dispatches'
     headers = {'Authorization': f'Bearer {GITHUB_TOKEN}', 'Accept': 'application/vnd.github.v3+json'}
-    r = requests.post(url, json={'ref': 'master'}, headers=headers, timeout=30)
+    r = requests.post(url, json={'ref': 'main'}, headers=headers, timeout=30)
     if r.status_code == 204:
         logger.info('Workflow triggered successfully')
         return True
