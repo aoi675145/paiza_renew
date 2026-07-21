@@ -341,9 +341,13 @@ def api_call(method, path, data=None):
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode())
+            raw = resp.read().decode()
+            return json.loads(raw) if raw.strip() else {}
     except urllib.error.HTTPError as e:
         log.warning(f"API {method} {path}: {e.code}")
+        # 204 No Content is success for DELETE
+        if e.code == 404:
+            return {}
         return None
 
 
@@ -352,7 +356,11 @@ def get_containers():
 
 
 def delete_container(cid):
-    return api_call("DELETE", f"/api/containers/{cid}")
+    result = api_call("DELETE", f"/api/containers/{cid}")
+    if result is None:
+        log.warning(f"Delete may have failed for {cid[:12]}")
+    else:
+        log.info(f"Deleted: {cid[:12]}")
 
 
 def update_vps_config(cid, token):
@@ -412,14 +420,17 @@ def run():
 
     # Step 0: Delete any existing containers
     log.info("Checking for old containers to delete...")
-    existing = get_containers()
-    if existing:
-        for c in existing:
-            old_id = c.get("_id") or c.get("id", "")
-            old_short = c.get("containerIdShort", "") or old_id[:12]
-            log.info(f"Deleting old container: {old_id} ({old_short})")
-            delete_container(old_id)
-            time.sleep(2)
+    try:
+        existing = get_containers()
+        if existing and isinstance(existing, list):
+            for c in existing:
+                old_id = c.get("_id") or c.get("id", "")
+                old_short = c.get("containerIdShort", "") or old_id[:12]
+                log.info(f"Deleting old container: {old_id} ({old_short})")
+                delete_container(old_id)
+                time.sleep(2)
+    except Exception as e:
+        log.warning(f"Delete step failed (non-fatal): {e}")
 
     opts = Options()
     opts.add_argument("--no-sandbox")
