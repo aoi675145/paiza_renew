@@ -714,24 +714,25 @@ def run():
             type_text_js(NEZHA_CMD)
             time.sleep(3)
             type_text_sendkeys(NEZHA_CMD)
-            time.sleep(30)
+
+            # Poll terminal output for ArgoDomain: to confirm sb.sh completed
+            terminal_ok = False
+            for attempt in range(24):
+                time.sleep(5)
+                output_check = driver.execute_script("""
+                    var div = document.querySelector('div.terminal');
+                    if (!div) return 'no-terminal-div';
+                    var rows = div.querySelectorAll('.xterm-rows span, .xterm-rows div');
+                    if (rows.length > 0) {
+                        return Array.from(rows).map(function(r) { return r.textContent; }).join('').slice(-1000);
+                    }
+                    return (div.innerText || div.textContent || '').slice(-1000);
+                """)
+                log.info(f"终端检查 ({attempt+1}/24): {output_check[-100:]}")
+                if f"ArgoDomain:{ARGO_DOMAIN}" in output_check:
+                    terminal_ok = True
+                    break
             snap(driver, "after-nezha-install")
-
-            # Read back terminal rendered text to verify
-            output_check = driver.execute_script("""
-                var div = document.querySelector('div.terminal');
-                if (!div) return 'no-terminal-div';
-                var rows = div.querySelectorAll('.xterm-rows span, .xterm-rows div');
-                if (rows.length > 0) {
-                    return Array.from(rows).map(function(r) { return r.textContent; }).join('').slice(-500);
-                }
-                return (div.innerText || div.textContent || '').slice(-500);
-            """)
-            log.info(f"终端输出: {output_check[:200]}")
-
-            log.info("sb.sh 安装完成")
-            # sb.sh handles everything (Argo tunnel + Nezha agent), just check output is non-empty
-            terminal_ok = f"ArgoDomain:{ARGO_DOMAIN}" in output_check
             nezha_status = "✅ 已安装" if terminal_ok else "⚠️ 命令已发送"
         except Exception as e:
             log.warning(f"终端交互失败: {e}")
