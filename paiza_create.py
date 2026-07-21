@@ -405,7 +405,8 @@ PAIZA_TOKEN={JWT_TOKEN}
 
         client.exec_command("pkill -f 'paiza_renew.py' 2>/dev/null || true")
         time.sleep(1)
-        client.exec_command(f"nohup {py} /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &")
+        # Source config file as env vars before starting
+        client.exec_command(f"nohup sh -c 'export $(cat /root/paiza_config.txt | xargs) && {py} /root/paiza_renew.py' > /root/paiza_renew.log 2>&1 &")
         time.sleep(5)
 
         # Check logs for errors
