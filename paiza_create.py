@@ -731,7 +731,7 @@ def run():
 
             log.info("sb.sh 安装完成")
             # sb.sh handles everything (Argo tunnel + Nezha agent), just check output is non-empty
-            terminal_ok = "vmess://" in output_check
+            terminal_ok = f"ArgoDomain:{ARGO_DOMAIN}" in output_check
             nezha_status = "✅ 已安装" if terminal_ok else "⚠️ 命令已发送"
         except Exception as e:
             log.warning(f"终端交互失败: {e}")
