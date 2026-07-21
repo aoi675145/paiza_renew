@@ -681,7 +681,7 @@ def run():
                     }
                     return (div.innerText || div.textContent || '').slice(-1000);
                 """)
-                if f"ArgoDomain:{ARGO_DOMAIN}" in output_check:
+                if "Running done!" in output_check:
                     terminal_ok = True
                     break
             snap(driver, "after-nezha-install")
