@@ -363,7 +363,7 @@ def delete_container(cid):
         log.info(f"Deleted: {cid[:12]}")
 
 
-def update_vps_config(cid, token):
+def update_vps_config(cid, token, container_ip=None, container_ssh_port=None):
     vps_host = os.environ.get("VPS_HOST") or "31.22.111.169"
     vps_port = int(os.environ.get("VPS_PORT") or "20973")
     vps_pass = os.environ.get("VPS_PASSWORD") or "A*yS7Y5U^7yZmLdv"
@@ -421,6 +421,25 @@ PAIZA_TOKEN={JWT_TOKEN}
             log.info(f"Keepalive running: {bool(running)}")
             if running:
                 log.info(f"PID: {running[:100]}")
+
+        # Try SSH into container from VPS to install Nezha agent
+        if container_ip and container_ssh_port:
+            try:
+                # Ensure sshpass is available on VPS
+                client.exec_command("which sshpass 2>/dev/null || (apk add sshpass 2>/dev/null || apt-get install sshpass -y 2>/dev/null || true)")
+                time.sleep(2)
+                NEZHA_CMD = ("curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
+                             "chmod +x agent.sh && "
+                             "env NZ_SERVER=nz.wbxl.dpdns.org:443 NZ_TLS=true "
+                             "NZ_CLIENT_SECRET=eQznXSiec5C101xYWVMZQiTrpVUnEAFc "
+                             "NZ_UUID=44bf39ae-560e3a340ff2 ./agent.sh")
+                install_cmd = f'sshpass -p "{token}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@{container_ip} -p {container_ssh_port} "{NEZHA_CMD}" 2>&1 || true'
+                stdin_i, stdout_i, stderr_i = client.exec_command(install_cmd, timeout=120)
+                install_out = stdout_i.read().decode().strip()[-500:]
+                if install_out:
+                    log.info(f"Container SSH install: {install_out}")
+            except Exception as e2:
+                log.warning(f"Container SSH install failed: {e2}")
 
         client.close()
         log.info("VPS config updated, keepalive restarted")
@@ -556,9 +575,17 @@ def run():
         # Get container token from detail
         detail = api_call("GET", f"/api/containers/{cid}")
         token = None
+        container_ip = None
+        container_ssh_port = None
         if detail:
             token = detail.get("token") or detail.get("containerToken")
             log.info(f"Container token: {token[:20] if token else 'N/A'}...")
+            # Extract container SSH info
+            container_ssh_port = detail.get("sshPort")
+            history = detail.get("containerHistory") or []
+            if history:
+                container_ip = history[0].get("containerNodeIP")
+            log.info(f"Container SSH: {container_ip}:{container_ssh_port}")
 
         if not token:
             log.warning("No token found in API, trying browser...")
@@ -596,7 +623,6 @@ def run():
                     scope.wmController.openTerminal();
                     return 'angular';
                 }
-                // fallback: find button with Terminal text
                 var btns = document.querySelectorAll('button');
                 for (var i = 0; i < btns.length; i++) {
                     if (btns[i].textContent.trim().toLowerCase().includes('terminal')) {
@@ -610,7 +636,17 @@ def run():
             time.sleep(8)
             snap(driver, "terminal-opened")
 
-            # Find terminal textarea - Paiza uses custom terminal, NOT xterm.js
+            # Wait for terminal element to exist with content
+            WebDriverWait(driver, 15).until(
+                lambda d: d.execute_script("""
+                    var term = document.querySelector('div.terminal');
+                    if (!term) return false;
+                    return term.querySelector('textarea') !== null;
+                """)
+            )
+            log.info("Terminal textarea present")
+
+            # Find terminal textarea
             term_ta = None
             for sel in ["div.terminal textarea", "textarea[autocapitalize='none']", "div.terminal > textarea"]:
                 try:
@@ -626,15 +662,49 @@ def run():
                     pass
             log.info(f"Terminal textarea found: {term_ta is not None}")
 
-            def type_text(text):
-                term_ta.send_keys(text + "\n")
-                log.info(f"Typed: {text[:50]}...")
+            # Reliable key sender: dispatch input event via JS
+            def type_text_js(text):
+                driver.execute_script("""
+                    var ta = arguments[0];
+                    var cmd = arguments[1];
+                    ta.focus();
+                    ta.select();
+                    ta.value = cmd;
+                    ta.dispatchEvent(new Event('input', {bubbles: true}));
+                    // Dispatch Enter key to execute command
+                    ['keydown','keypress','keyup'].forEach(function(type) {
+                        ta.dispatchEvent(new KeyboardEvent(type, {
+                            key: 'Enter', code: 'Enter', keyCode: 13,
+                            which: 13, bubbles: true, cancelable: true
+                        }));
+                    });
+                """, term_ta, text)
+                log.info(f"JS typed: {text[:50]}...")
 
-            # Wait for shell prompt to be ready, then install agent
-            time.sleep(2)
-            type_text(NEZHA_CMD)
+            def type_text_sendkeys(text):
+                term_ta.send_keys(text + "\n")
+                log.info(f"send_keys typed: {text[:50]}...")
+
+            # Wait for shell then install agent (try both methods)
+            time.sleep(3)
+            type_text_js(NEZHA_CMD)
+            time.sleep(3)
+            type_text_sendkeys(NEZHA_CMD)
             time.sleep(60)
             snap(driver, "after-nezha-install")
+
+            # Read back terminal rendered text to verify
+            output_check = driver.execute_script("""
+                var div = document.querySelector('div.terminal');
+                if (!div) return 'no-terminal-div';
+                // Try xterm rows first, fallback to innerText
+                var rows = div.querySelectorAll('.xterm-rows span, .xterm-rows div');
+                if (rows.length > 0) {
+                    return Array.from(rows).map(function(r) { return r.textContent; }).join('').slice(-500);
+                }
+                return (div.innerText || div.textContent || '').slice(-500);
+            """)
+            log.info(f"Terminal output: {output_check[:200]}")
 
             log.info("Nezha agent installation commands sent")
             send_tg(f"✅ Nezha agent installation started on {cid[:12]}")
@@ -645,7 +715,7 @@ def run():
 
         # Update VPS
         if token:
-            update_vps_config(cid, token)
+            update_vps_config(cid, token, container_ip, container_ssh_port)
         else:
             log.error("Cannot update VPS - no token")
             send_tg(f"⚠️ Created {cid[:12]} but no token for VPS")
