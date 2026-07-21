@@ -20,7 +20,6 @@
 ## 注意事项
 
 - **VPS 需要有 Python 环境**：脚本会自动尝试安装（`apk add python3` / `apt install python3`），但如果系统没有 `apk` 或 `apt` 会失败
-- **VPS 配置文件自动更新**：每次创建新容器后，脚本会自动 SSH 到 VPS，将新容器的 ID 和 Token 写入 `/root/paiza_config.txt`，同时上传最新的 `paiza_renew.py` 并重启保活。VPS 始终保活最新容器
 - **容器 4 小时限制**：`paiza_renew.py` 每 60 秒发 keepalive 防止空闲超时；满 4 小时自动快照恢复重置计时。VPS 失联则容器会被回收
 - **Secrets 不全则 workflow 报错**：`NEZHA_SERVER` / `NEZHA_KEY` / `NZ_UUID` / `PAIZA_JWT` / `VPS` 缺一不可
 
@@ -33,7 +32,8 @@ GitHub Actions 手动触发
   → 音频 reCAPTCHA 破解
   → 创建容器
   → 终端交互安装哪吒探针（sudo -i 提权 + 安装脚本 + nohup 后台运行）
-  → VPS 保活配置更新
+  → SSH 到 VPS，写入新容器 ID 和 Token 到 /root/paiza_config.txt
+  → 上传最新 paiza_renew.py，重启保活脚本
   → TG 通知
 ```
 
