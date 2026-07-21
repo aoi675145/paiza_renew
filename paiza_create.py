@@ -3,7 +3,7 @@ import os, re, sys, time, json, base64, html, tempfile, random, uuid, urllib.req
 sys.stdout.reconfigure(line_buffering=True)
 import logging
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -43,6 +43,10 @@ def snap(driver, name):
     except Exception:
         return None
 
+
+def bj_now():
+    tz = timezone(timedelta(hours=8))
+    return datetime.now(tz).strftime("%Y-%m-%d %H:%M")
 
 def send_tg(msg):
     if not TG_TOKEN:
@@ -443,7 +447,6 @@ PAIZA_TOKEN={JWT_TOKEN}
 
         client.close()
         log.info("VPS config updated, keepalive restarted")
-        send_tg(f"✅ VPS keepalive updated for {cid[:12]}")
         return True
     except ImportError:
         log.warning("paramiko not installed, trying subprocess...")
@@ -726,24 +729,39 @@ def run():
             log.info(f"Terminal output: {output_check[:200]}")
 
             log.info("Nezha agent installation commands sent")
-            send_tg(f"✅ Nezha agent installation started on {cid[:12]}")
 
+            terminal_ok = bool(output_check) and "successfully installed" in output_check.lower()
+            nezha_status = "✅ 已安装" if terminal_ok else "⚠️ 命令已发送"
         except Exception as e:
             log.warning(f"Terminal interaction failed: {e}")
-            send_tg(f"⚠️ Terminal failed, will install via VPS later")
+            terminal_ok = False
+            nezha_status = f"❌ 终端异常"
 
         # Update VPS
         if token:
-            update_vps_config(cid, token, container_ip, container_ssh_port)
+            vps_ok = update_vps_config(cid, token, container_ip, container_ssh_port)
         else:
             log.error("Cannot update VPS - no token")
-            send_tg(f"⚠️ Created {cid[:12]} but no token for VPS")
+            vps_ok = False
 
-        send_tg(f"✅ Container: {cid[:12]}")
+        # ── Consolidated notification ──
+        lines = [
+            "🎮 PaizaCloud 重建",
+            f"⏰ 通知时间：{bj_now()}",
+            f"📊 容器：{'✅' if cid else '❌'} {cid[:12] if cid else '创建失败'}",
+            f"📊 哪吒：{nezha_status}",
+            f"📊 保活：{'✅ 运行中' if vps_ok else '❌ 部署失败'}",
+        ]
+        send_tg("\n".join(lines))
 
     except Exception as e:
         log.error(f"Error: {e}")
-        send_tg(f"❌ {e}")
+        lines = [
+            "🎮 PaizaCloud ❌",
+            f"⏰ 通知时间：{bj_now()}",
+            f"❌ {e}",
+        ]
+        send_tg("\n".join(lines))
         snap(driver, "error")
         raise
     finally:
