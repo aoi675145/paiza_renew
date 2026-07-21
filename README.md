@@ -17,6 +17,15 @@
 | `TG_BOT` | ❌ | Telegram 通知，格式 `chat_id,bot_token`；未填写时不发通知 |
 
 
+## 注意事项
+
+- **必填 Secrets**：`NEZHA_SERVER` / `NEZHA_KEY` / `NZ_UUID` / `PAIZA_JWT` / `VPS` 五个缺一不可，`TG_BOT` 可选
+- **VPS 重装**：只需更新 `VPS` Secret（IP、端口、密码），下次运行会自动装 Python、上传保活脚本并启动
+- **容器 4h 限制**：VPS 保活脚本每分钟发 keepalive，防止空闲超时；满 4 小时后自动快照恢复，重置计时
+- **哪吒配置**：存在 GitHub Secrets 中，代码无硬编码
+- **运行环境**：工作流在 GitHub Actions 上执行，依赖 WARP（用于绕过 Google 音频 reCAPTCHA 下载限制）
+
+
 ## 工作流程
 
 ```
