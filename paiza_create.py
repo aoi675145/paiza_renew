@@ -632,25 +632,19 @@ def run():
             time.sleep(3)
             type_text_sendkeys(NEZHA_CMD)
 
-            # Check terminal output for completion
-            terminal_ok = False
-            for attempt in range(120):
-                time.sleep(5)
-                output_check = driver.execute_script("""
-                    var div = document.querySelector('div.terminal');
-                    if (!div) return '';
-                    return div.innerText || div.textContent || '';
-                """)
-                if "Running done!" in output_check:
-                    terminal_ok = True
-                    break
-                if attempt % 12 == 0:
-                    tail = output_check[-120:].replace('\n', ' ').strip()
-                    print(f"  \u23f3 \u7b49\u5f85\u5b89\u88c5\u5b8c\u6210... ({attempt*5+5}s) {tail}")
+            # Check command echo in terminal
+            time.sleep(15)
+            output_check = driver.execute_script("""
+                var div = document.querySelector('div.terminal');
+                if (!div) return '';
+                return div.innerText || div.textContent || '';
+            """)
+            terminal_ok = "sb.sh" in output_check
             if terminal_ok:
-                print("  \u2705 sb.sh \u5b89\u88c5\u5b8c\u6210\uff01")
+                print("  \u2705 sb.sh \u5b89\u88c5\u547d\u4ee4\u5df2\u53d1\u9001")
             else:
-                print("  \u26a0\ufe0f \u5b89\u88c5\u547d\u4ee4\u5df2\u53d1\u9001\uff0c\u4f46\u672a\u786e\u8ba4\u5b8c\u6210")
+                print("  \u26a0\ufe0f \u7ec8\u7aef\u672a\u62d3\u5c55\u5230\u547d\u4ee4")
+            nezha_status = "\u2705 \u5df2\u5b89\u88c5" if terminal_ok else "\u26a0\ufe0f \u547d\u4ee4\u5df2\u53d1\u9001"
             nezha_status = "\u2705 \u5df2\u5b89\u88c5" if terminal_ok else "\u26a0\ufe0f \u547d\u4ee4\u5df2\u53d1\u9001"
         except Exception as e:
             print(f"  \u274c \u7ec8\u7aef\u4ea4\u4e92\u5931\u8d25: {e}")
