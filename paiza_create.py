@@ -44,7 +44,7 @@ def snap(driver, name):
         fname = f"{ts}-{snap_index:03d}-{name}.png"
         path = str(SCREEN_DIR / fname)
         driver.save_screenshot(path)
-        log.info(f"📸 {fname}")
+        print(f"  {fname}")
         return path
     except Exception:
         return None
@@ -62,12 +62,12 @@ def send_tg(msg):
         data = urllib.parse.urlencode({"chat_id": TG_CHAT_ID, "text": msg}).encode()
         req = urllib.request.Request(url, data=data, method="POST")
         with urllib.request.urlopen(req, timeout=15):
-            log.info("📨 TG done")
+            print("  TG done")
     except Exception as e:
-        log.warning(f"TG fail: {e}")
+        print(f"  TG fail: {e}")
 
 
-# ── reCAPTCHA audio solver (adapted for Selenium) ──
+# ── reCAPTCHA audio solver ──
 
 
 def switch_to_frame(driver, url_contains):
@@ -79,7 +79,6 @@ def switch_to_frame(driver, url_contains):
             driver.switch_to.parent_frame()
         except Exception:
             driver.switch_to.parent_frame()
-    # Try recursive through all frames
     driver.switch_to.default_content()
     for window in driver.window_handles:
         driver.switch_to.window(window)
@@ -106,7 +105,6 @@ def is_recaptcha_solved(driver):
     except Exception:
         pass
     try:
-        # Check via recaptcha frames
         for frame in driver.find_elements(By.TAG_NAME, "iframe"):
             try:
                 src = frame.get_attribute("src") or ""
@@ -127,17 +125,14 @@ def is_recaptcha_solved(driver):
 
 
 def click_recaptcha_checkbox(driver):
-    log.info("点击 reCAPTCHA 复选框...")
+    print("  \U0001f6e1\ufe0f \u70b9\u51fb reCAPTCHA \u590d\u9009\u6846...")
     driver.switch_to.default_content()
     if switch_to_frame(driver, "anchor"):
         try:
             driver.find_element(By.ID, "recaptcha-anchor").click()
-            log.info("复选框已点击")
-        except Exception as e:
-            log.warning(f"复选框点击失败: {e}")
+        except Exception:
+            pass
         driver.switch_to.parent_frame()
-    else:
-        log.warning("未找到 anchor 框架")
 
 
 def switch_to_audio(driver):
@@ -222,13 +217,13 @@ def download_audio(url):
             resp.raise_for_status()
             if len(resp.content) < 1000:
                 continue
-            log.info(f"音频: {len(resp.content)} 字节")
+            print(f"  \U0001f50a {len(resp.content)} \u5b57\u8282")
             p = tempfile.mktemp(suffix=".mp3")
             with open(p, "wb") as f:
                 f.write(resp.content)
             return p
         except Exception as e:
-            log.warning(f"音频下载失败: {e}")
+            print(f"  \u26a0\ufe0f \u97f3\u9891\u4e0b\u8f7d\u5931\u8d25: {e}")
     return None
 
 
@@ -247,7 +242,7 @@ def recognize_audio(mp3_path):
             pass
         return text
     except Exception as e:
-        log.warning(f"语音识别失败: {e}")
+        print(f"  \u26a0\ufe0f \u8bed\u97f3\u8bc6\u522b\u5931\u8d25: {e}")
         return None
 
 
@@ -281,22 +276,20 @@ def reload_challenge(driver):
 
 
 def solve_recaptcha(driver):
-    log.info("🎧 音频验证码破解中...")
+    print("  \U0001f3a7 \u97f3\u9891\u9a8c\u8bc1\u7801\u7834\u89e3\u4e2d...")
     time.sleep(3)
     for i in range(MAX_CAPTCHA):
-        log.info(f"--- 第 {i+1}/{MAX_CAPTCHA} 次尝试 ---")
         if is_recaptcha_solved(driver):
-            log.info("验证码已通过！")
+            print("  \u2705 \u9a8c\u8bc1\u7801\u5df2\u901a\u8fc7\uff01")
             return True
         if i == 0:
             click_recaptcha_checkbox(driver)
             time.sleep(3)
             snap(driver, "checkbox")
             if is_recaptcha_solved(driver):
-                log.info("复选框已通过验证码！")
+                print("  \u2705 \u590d\u9009\u6846\u5df2\u901a\u8fc7\u9a8c\u8bc1\u7801\uff01")
                 return True
         if not switch_to_frame(driver, "bframe"):
-            log.info("未找到 bframe，等待中...")
             time.sleep(3)
             continue
         is_audio = driver.execute_script(
@@ -304,7 +297,6 @@ def solve_recaptcha(driver):
         )
         driver.switch_to.parent_frame()
         if not is_audio:
-            log.info("切换到音频模式...")
             switch_to_audio(driver)
             time.sleep(2)
         snap(driver, f"audio-{i+1}")
@@ -326,13 +318,13 @@ def solve_recaptcha(driver):
             reload_challenge(driver)
             time.sleep(3)
             continue
-        log.info(f"识别结果: [{text}]")
+        print(f"  \U0001f50d \u8bc6\u522b\u7ed3\u679c: [{text}]")
         fill_and_verify(driver, text)
         time.sleep(5)
         if is_recaptcha_solved(driver):
-            log.info("验证码已通过！")
+            print("  \u2705 \u9a8c\u8bc1\u7801\u5df2\u901a\u8fc7\uff01")
             return True
-        log.warning("答案错误，重试...")
+        print("  \u26a0\ufe0f \u7b54\u6848\u9519\u8bef\uff0c\u91cd\u8bd5...")
         reload_challenge(driver)
         time.sleep(3)
     raise RuntimeError("验证码尝试次数耗尽")
@@ -354,8 +346,7 @@ def api_call(method, path, data=None):
             raw = resp.read().decode()
             return json.loads(raw) if raw.strip() else {}
     except urllib.error.HTTPError as e:
-        log.warning(f"API 请求失败 {method} {path}: {e.code}")
-        # 204 No Content is success for DELETE
+        log.warning(f"API {method} {path}: {e.code}")
         if e.code == 404:
             return {}
         return None
@@ -368,9 +359,9 @@ def get_containers():
 def delete_container(cid):
     result = api_call("DELETE", f"/api/containers/{cid}")
     if result is None:
-        log.warning(f"删除可能失败: {cid[:12]}")
+        print(f"  \u26a0\ufe0f \u5220\u9664\u53ef\u80fd\u5931\u8d25: {cid[:12]}")
     else:
-        log.info(f"已删除: {cid[:12]}")
+        print(f"  \u2705 \u5df2\u5220\u9664: {cid[:12]}")
 
 
 def update_vps_config(cid, token, container_ip=None, container_ssh_port=None):
@@ -394,25 +385,21 @@ PAIZA_JWT={JWT_TOKEN}
         stdin.channel.shutdown_write()
         time.sleep(2)
 
-        # Check if python3 exists, fallback to python
         stdin2, stdout2, stderr2 = client.exec_command("which python3 || which python || echo 'no python'")
         py = stdout2.read().decode().strip()
-        log.info(f"VPS Python: {py}")
+        print(f"  \U0001f4e1 VPS Python: {py}")
 
-        # Auto-install python if missing
         if py == 'no python':
-            log.info("Python not found on VPS, installing...")
+            print("  \U0001f4e1 Python \u672a\u5b89\u88c5\uff0c\u81ea\u52a8\u5b89\u88c5...")
             client.exec_command("apk add python3 2>/dev/null || apt-get install -y python3 2>/dev/null || true")
             time.sleep(8)
             stdin2, stdout2, stderr2 = client.exec_command("which python3 || which python || echo 'no python'")
             py = stdout2.read().decode().strip()
-            log.info(f"VPS Python after install: {py}")
+            print(f"  \U0001f4e1 \u5b89\u88c5\u5b8c\u6210: {py}")
 
-        # Ensure requests module is installed
         client.exec_command(f"{py} -c 'import requests' 2>/dev/null || pip3 install requests 2>/dev/null || {py} -m pip install requests 2>/dev/null || true")
         time.sleep(3)
 
-        # Upload latest paiza_renew.py to VPS
         renew_script = Path(__file__).resolve().parent / "paiza_renew.py"
         if renew_script.exists():
             script_content = renew_script.read_text()
@@ -421,31 +408,26 @@ PAIZA_JWT={JWT_TOKEN}
             stdin_s.flush()
             stdin_s.channel.shutdown_write()
             time.sleep(2)
-            log.info("已上传 paiza_renew.py 到 VPS")
+            print("  \U0001f4e1 \u5df2\u4e0a\u4f20 paiza_renew.py")
 
         client.exec_command("pkill -f 'paiza_renew.py' 2>/dev/null || true")
         time.sleep(1)
-        # Source config file as env vars before starting
         client.exec_command(f"nohup sh -c 'export $(cat /root/paiza_config.txt | xargs) && {py} /root/paiza_renew.py' > /root/paiza_renew.log 2>&1 &")
         time.sleep(5)
 
-        # Check logs for errors
         stdin3, stdout3, stderr3 = client.exec_command("cat /root/paiza_renew.log 2>/dev/null | tail -10")
         vps_log = stdout3.read().decode().strip()
         if vps_log:
-            log.info(f"VPS log: {vps_log}")
+            print(f"  \U0001f4e1 \u4fdd\u6d3b\u65e5\u5fd7: {vps_log[:200]}")
         else:
-            # Check if process is running
             stdin4, stdout4, stderr4 = client.exec_command("ps aux | grep -v grep | grep paiza_renew || true")
             running = stdout4.read().decode().strip()
-            log.info(f"保活运行中: {bool(running)}")
             if running:
-                log.info(f"PID: {running[:100]}")
+                print("  \u2705 \u4fdd\u6d3b\u5df2\u542f\u52a8")
 
         # Try SSH into container from VPS to install Nezha agent
         if container_ip and container_ssh_port:
             try:
-                # Ensure sshpass is available on VPS
                 client.exec_command("which sshpass 2>/dev/null || (apk add sshpass 2>/dev/null || apt-get install sshpass -y 2>/dev/null || true)")
                 time.sleep(2)
                 NEZHA_CMD = (f"NAME=paiza UUID={NZ_UUID} ARGO_DOMAIN={ARGO_DOMAIN} "
@@ -456,15 +438,15 @@ PAIZA_JWT={JWT_TOKEN}
                 stdin_i, stdout_i, stderr_i = client.exec_command(install_cmd, timeout=120)
                 install_out = stdout_i.read().decode().strip()[-500:]
                 if install_out:
-                    log.info(f"容器 SSH 安装输出: {install_out}")
+                    print(f"  \U0001f4e1 \u5bb9\u5668 SSH \u5b89\u88c5\u8f93\u51fa: {install_out[:200]}")
             except Exception as e2:
-                log.warning(f"容器 SSH 安装失败: {e2}")
+                print(f"  \u26a0\ufe0f \u5bb9\u5668 SSH \u5b89\u88c5\u5931\u8d25: {e2}")
 
         client.close()
-        log.info("VPS 配置已更新，保活已重启")
+        print("  \u2705 VPS \u914d\u7f6e\u5df2\u66f4\u65b0\uff0c\u4fdd\u6d3b\u5df2\u91cd\u542f")
         return True
     except ImportError:
-        log.warning("paramiko 未安装，尝试 subprocess...")
+        print("  \u26a0\ufe0f paramiko \u672a\u5b89\u88c5\uff0c\u4f7f\u7528 subprocess...")
         import subprocess
         cmd = f"""sshpass -p '{vps_pass}' ssh -o StrictHostKeyChecking=no root@{vps_host} -p {vps_port} 'cat > /root/paiza_config.txt << EOF
 PAIZA_CONTAINER_ID={cid}
@@ -474,10 +456,10 @@ EOF
 pkill -f "python3 paiza_renew.py" 2>/dev/null || true
 nohup python3 /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &'"""
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-        log.info(f"VPS 子进程: {result.stdout[-200:]} {result.stderr[-200:]}")
+        print(f"  \U0001f4e1 VPS: {result.stdout[-100:]} {result.stderr[-100:]}")
         return True
     except Exception as e:
-        log.error(f"VPS 更新失败: {e}")
+        print(f"  \u274c VPS \u66f4\u65b0\u5931\u8d25: {e}")
         return False
 
 
@@ -485,23 +467,25 @@ nohup python3 /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &'"""
 
 def run():
     ensure_dir()
-    log.info("=" * 50)
-    log.info("PaizaCloud 容器自动创建")
-    log.info("=" * 50)
+    print("")
+    print("#########################")
+    print("   PaizaCloud \u5bb9\u5668\u81ea\u52a8\u521b\u5efa")
+    print("#########################")
+    print("")
 
     # Step 0: Delete any existing containers
-    log.info("检查旧容器并清理...")
+    print("  \U0001f5d1\ufe0f \u68c0\u67e5\u5e76\u5220\u9664\u65e7\u5bb9\u5668...")
     try:
         existing = get_containers()
         if existing and isinstance(existing, list):
             for c in existing:
                 old_id = c.get("_id") or c.get("id", "")
                 old_short = c.get("containerIdShort", "") or old_id[:12]
-                log.info(f"删除旧容器: {old_id} ({old_short})")
+                print(f"  \U0001f5d1\ufe0f \u5220\u9664\u65e7\u5bb9\u5668: {old_short}")
                 delete_container(old_id)
                 time.sleep(2)
     except Exception as e:
-        log.warning(f"删除步骤失败（非致命）: {e}")
+        print(f"  \u26a0\ufe0f \u5220\u9664\u6b65\u9aa4\u5931\u8d25: {e}")
 
     opts = Options()
     opts.add_argument("--no-sandbox")
@@ -515,8 +499,7 @@ def run():
     driver.set_window_size(1920, 1080)
 
     try:
-        # Set cookie via CDP before navigation
-        log.info("通过 CDP 设置 Cookie...")
+        print("  \U0001f310 \u8bbe\u7f6e Cookie \u5e76\u6253\u5f00\u521b\u5efa\u9875\u9762...")
         driver.execute_cdp_cmd("Network.enable", {})
         driver.execute_cdp_cmd("Network.setCookie", {
             "name": "token",
@@ -524,27 +507,20 @@ def run():
             "domain": "paiza.cloud",
             "path": "/",
         })
-        log.info("Cookie 已设置")
-
-        # Navigate to create page
-        log.info("打开创建页面 /containers?new=true ...")
         driver.get("https://paiza.cloud/containers?new=true")
         time.sleep(5)
-        log.info(f"当前 URL: {driver.current_url}")
         snap(driver, "create-page")
 
-        # Check if redirected
         if "/en/" in driver.current_url and "containers" not in driver.current_url:
-            log.warning("被重定向到首页，尝试其他方式...")
+            print("  \u26a0\ufe0f \u88ab\u91cd\u5b9a\u5411\uff0c\u5c1d\u8bd5\u5176\u4ed6\u65b9\u5f0f...")
             driver.get("https://paiza.cloud/containers")
             time.sleep(3)
             snap(driver, "containers-page")
-            for sel in ["New", "Create", "作成", "+"]:
+            for sel in ["New", "Create", "\u4f5c\u6210", "+"]:
                 try:
                     el = driver.find_element(By.XPATH, f"//*[text()='{sel}']")
                     if el.is_displayed():
                         el.click()
-                        log.info(f"点击了 '{sel}' 按钮")
                         time.sleep(3)
                         break
                 except Exception:
@@ -552,21 +528,18 @@ def run():
 
         snap(driver, "before-captcha")
 
-        # Fill name if visible
         try:
             name_in = driver.find_element(By.CSS_SELECTOR, "input[name='name']")
             if name_in.is_displayed():
                 name_in.send_keys("auto-" + datetime.now().strftime("%m%d%H%M"))
-                log.info("容器名称已填写")
         except Exception:
             pass
 
-        # Solve reCAPTCHA
+        print("  \U0001f6e1\ufe0f \u89e3\u51b3 reCAPTCHA \u9a8c\u8bc1\u7801...")
         solve_recaptcha(driver)
         snap(driver, "captcha-solved")
 
-        # Submit
-        log.info("提交创建...")
+        print("  \U0001f680 \u63d0\u4ea4\u521b\u5efa\u4efb\u52a1...")
         for sel in ["//*[text()='New Server']", "button[type='submit']", "//*[text()='Create']"]:
             try:
                 if sel.startswith("//"):
@@ -575,7 +548,6 @@ def run():
                     el = driver.find_element(By.CSS_SELECTOR, sel)
                 if el.is_displayed():
                     el.click()
-                    log.info(f"点击了: {sel}")
                     break
             except Exception:
                 continue
@@ -583,30 +555,25 @@ def run():
         time.sleep(15)
         snap(driver, "after-submit")
 
-        # Check container created
         containers = get_containers()
         if not containers or len(containers) == 0:
             raise RuntimeError("提交后未创建容器")
         cid = containers[0].get("_id") or containers[0].get("id", "")
-        log.info(f"容器已创建: {cid}")
+        print(f"\n  \u2705 \u5bb9\u5668\u5df2\u521b\u5efa: {cid[:12]}\n")
 
-        # Get container token from detail
         detail = api_call("GET", f"/api/containers/{cid}")
         token = None
         container_ip = None
         container_ssh_port = None
         if detail:
             token = detail.get("token") or detail.get("containerToken")
-            log.info(f"容器 Token: {token[:20] if token else 'N/A'}...")
-            # Extract container SSH info
             container_ssh_port = detail.get("sshPort")
             history = detail.get("containerHistory") or []
             if history:
                 container_ip = history[0].get("containerNodeIP")
-            log.info(f"容器 SSH: {container_ip}:{container_ssh_port}")
 
         if not token:
-            log.warning("API 中未找到 Token，尝试从浏览器获取...")
+            print("  \u26a0\ufe0f API \u672a\u627e\u5230 Token\uff0c\u5c1d\u8bd5\u4ece\u6d4f\u89c8\u5668\u83b7\u53d6...")
             driver.get(f"https://paiza.cloud/containers/{cid}/show")
             time.sleep(3)
             token = driver.execute_script("""
@@ -618,22 +585,19 @@ def run():
                     return window.__INITIAL_STATE__ ? (window.__INITIAL_STATE__.containerToken || '') : '';
                 """)
 
-        log.info(f"最终 Token: {token[:20] if token else 'N/A'}...")
-
-        # ── Open terminal and install Nezha agent ──
+        # ── Open terminal and install ──
         NEZHA_CMD = (f"NAME=paiza UUID={NZ_UUID} ARGO_DOMAIN={ARGO_DOMAIN} "
                      f"ARGO_AUTH={ARGO_AUTH} "
                      f"NEZHA_SERVER={NEZHA_SERVER} NEZHA_KEY={NEZHA_KEY} "
                      f"bash <(curl -Ls https://main.ssss.nyc.mn/sb.sh)")
         NEZHA_CMD = os.environ.get("NEZHA_CMD", NEZHA_CMD)
 
-        log.info("打开终端，安装哪吒探针...")
+        print("  \U0001f4bb \u6253\u5f00\u7ec8\u7aef\uff0c\u5b89\u88c5 sb.sh...")
         try:
             driver.get(f"https://paiza.cloud/containers/{cid}/show")
             time.sleep(5)
             snap(driver, "workspace")
 
-            # Click Terminal button using Angular controller
             clicked = driver.execute_script("""
                 var scope = angular.element('.container-menu').scope();
                 if (scope && scope.wmController) {
@@ -649,11 +613,9 @@ def run():
                 }
                 return false;
             """)
-            log.info(f"终端打开方式: {clicked}")
             time.sleep(8)
             snap(driver, "terminal-opened")
 
-            # Wait for terminal element to exist with content
             WebDriverWait(driver, 15).until(
                 lambda d: d.execute_script("""
                     var term = document.querySelector('div.terminal');
@@ -661,9 +623,7 @@ def run():
                     return term.querySelector('textarea') !== null;
                 """)
             )
-            log.info("终端文本区域已就绪")
 
-            # Find terminal textarea
             term_ta = None
             for sel in ["div.terminal textarea", "textarea[autocapitalize='none']", "div.terminal > textarea"]:
                 try:
@@ -677,9 +637,7 @@ def run():
                     term_ta = driver.find_element(By.CSS_SELECTOR, "div.terminal textarea")
                 except Exception:
                     pass
-            log.info(f"终端文本区域找到: {term_ta is not None}")
 
-            # Reliable key sender: dispatch input event via JS
             def type_text_js(text):
                 driver.execute_script("""
                     var ta = arguments[0];
@@ -688,7 +646,6 @@ def run():
                     ta.select();
                     ta.value = cmd;
                     ta.dispatchEvent(new Event('input', {bubbles: true}));
-                    // Dispatch Enter key to execute command
                     ['keydown','keypress','keyup'].forEach(function(type) {
                         ta.dispatchEvent(new KeyboardEvent(type, {
                             key: 'Enter', code: 'Enter', keyCode: 13,
@@ -696,26 +653,22 @@ def run():
                         }));
                     });
                 """, term_ta, text)
-                log.info(f"JS 输入: {text[:50]}...")
 
             def type_text_sendkeys(text):
                 term_ta.send_keys(text + "\n")
-                log.info(f"send_keys 输入: {text[:50]}...")
 
-            # Wait for shell then become root
             time.sleep(3)
-            log.info("发送 sudo -i 提权...")
+            print("  \U0001f512 sudo -i \u63d0\u6743...")
             type_text_js("sudo -i")
-            # Also send Enter via send_keys (trusted event, xterm.js may ignore JS KeyboardEvent)
             term_ta.send_keys("\n")
             time.sleep(5)
             snap(driver, "after-sudo")
-            log.info("发送哪吒安装命令...")
+
+            print("  \U0001f916 \u53d1\u9001\u5b89\u88c5\u547d\u4ee4...")
             type_text_js(NEZHA_CMD)
             time.sleep(3)
             type_text_sendkeys(NEZHA_CMD)
 
-            # Poll terminal output for ArgoDomain: to confirm sb.sh completed
             terminal_ok = False
             for attempt in range(24):
                 time.sleep(5)
@@ -728,40 +681,49 @@ def run():
                     }
                     return (div.innerText || div.textContent || '').slice(-1000);
                 """)
-                log.info(f"终端检查 ({attempt+1}/24): {output_check[-100:]}")
                 if f"ArgoDomain:{ARGO_DOMAIN}" in output_check:
                     terminal_ok = True
                     break
             snap(driver, "after-nezha-install")
-            nezha_status = "✅ 已安装" if terminal_ok else "⚠️ 命令已发送"
+
+            if terminal_ok:
+                print("  \u2705 sb.sh \u5b89\u88c5\u5b8c\u6210\uff01")
+            else:
+                print("  \u26a0\ufe0f \u5b89\u88c5\u547d\u4ee4\u5df2\u53d1\u9001\uff0c\u4f46\u672a\u786e\u8ba4\u5b8c\u6210")
+            nezha_status = "\u2705 \u5df2\u5b89\u88c5" if terminal_ok else "\u26a0\ufe0f \u547d\u4ee4\u5df2\u53d1\u9001"
         except Exception as e:
-            log.warning(f"终端交互失败: {e}")
-            terminal_ok = False
-            nezha_status = f"❌ 终端异常"
+            print(f"  \u274c \u7ec8\u7aef\u4ea4\u4e92\u5931\u8d25: {e}")
+            nezha_status = "\u274c \u7ec8\u7aef\u5f02\u5e38"
 
         # Update VPS
         if token:
+            print("  \U0001f4e1 \u66f4\u65b0 VPS \u4fdd\u6d3b\u914d\u7f6e...")
             vps_ok = update_vps_config(cid, token, container_ip, container_ssh_port)
         else:
-            log.error("无法更新 VPS - 无 Token")
+            print("  \u274c \u65e0 Token\uff0c\u65e0\u6cd5\u66f4\u65b0 VPS")
             vps_ok = False
 
-        # ── Consolidated notification ──
+        ok_em = "\u2705"; no_em = "\u274c"
+        fail = "\u521b\u5efa\u5931\u8d25"
+        running = "\u8fd0\u884c\u4e2d"; deploy_fail = "\u90e8\u7f72\u5931\u8d25"
         lines = [
-            "🎮 PaizaCloud 重建",
-            f"⏰ 通知时间：{bj_now()}",
-            f"📊 容器：{'✅' if cid else '❌'} {cid[:12] if cid else '创建失败'}",
-            f"📊 哪吒：{nezha_status}",
-            f"📊 保活：{'✅ 运行中' if vps_ok else '❌ 部署失败'}",
+            "\U0001f3ae PaizaCloud \u91cd\u5efa",
+            f"\u23f0 \u901a\u77e5\u65f6\u95f4\uff1a{bj_now()}",
+            f"\U0001f4ca \u5bb9\u5668\uff1a{ok_em if cid else no_em} {cid[:12] if cid else fail}",
+            f"\U0001f4ca \u542f\u52a8\u811a\u672c\uff1a{nezha_status}",
+            f"\U0001f4ca \u4fdd\u6d3b\uff1a{ok_em + ' ' + running if vps_ok else no_em + ' ' + deploy_fail}",
         ]
         send_tg("\n".join(lines))
 
+        print(f"\n  \U0001f3c1 \u5168\u90e8\u5b8c\u6210\uff01")
+        print(f"  \U0001f517 {driver.current_url}")
+
     except Exception as e:
-        log.error(f"Error: {e}")
+        print(f"\n  \u274c \u8fd0\u884c\u5931\u8d25: {e}")
         lines = [
-            "🎮 PaizaCloud ❌",
-            f"⏰ 通知时间：{bj_now()}",
-            f"❌ {e}",
+            "\U0001f3ae PaizaCloud \u274c",
+            f"\u23f0 \u901a\u77e5\u65f6\u95f4\uff1a{bj_now()}",
+            f"\u274c {e}",
         ]
         send_tg("\n".join(lines))
         snap(driver, "error")
