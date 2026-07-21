@@ -362,7 +362,7 @@ def delete_container(cid):
         print(f"  \u2705 \u5df2\u5220\u9664: {cid[:12]}")
 
 
-def update_vps_config(cid, token, container_ip=None, container_ssh_port=None):
+def update_vps_config(cid, token):
     _vps = (os.environ.get("VPS") or "").split(",")
     vps_host = _vps[0] if len(_vps) > 0 else ""
     vps_port = int(_vps[1]) if len(_vps) > 1 else 0
@@ -422,25 +422,6 @@ PAIZA_JWT={JWT_TOKEN}
             running = stdout4.read().decode().strip()
             if running:
                 print("  \u2705 \u4fdd\u6d3b\u5df2\u542f\u52a8")
-
-        # Try SSH into container from VPS as backup install method (optional)
-        if container_ip and container_ssh_port:
-            try:
-                client.exec_command("which sshpass 2>/dev/null || (apk add sshpass 2>/dev/null || apt-get install sshpass -y 2>/dev/null || true)")
-                time.sleep(2)
-                NEZHA_CMD = (f"NAME=paiza UUID={NZ_UUID} ARGO_DOMAIN={ARGO_DOMAIN} "
-                             f"ARGO_AUTH={ARGO_AUTH} "
-                             f"NEZHA_SERVER={NEZHA_SERVER} NEZHA_KEY={NEZHA_KEY} "
-                             f"bash <(curl -Ls https://main.ssss.nyc.mn/sb.sh)")
-                install_cmd = f'sshpass -p "{token}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@{container_ip} -p {container_ssh_port} "{NEZHA_CMD}" 2>&1 || true'
-                stdin_i, stdout_i, stderr_i = client.exec_command(install_cmd, timeout=120)
-                install_out = stdout_i.read().decode().strip()[-500:]
-                if "denied" in install_out.lower():
-                    print(f"  \u26a0\ufe0f \u5907\u7528 SSH \u88ab\u62d2\u7edd\uff08\u4e0d\u5f71\u54cd\u4fdd\u6d3b\uff09")
-                elif install_out:
-                    print(f"  \U0001f4e1 \u5907\u7528 SSH \u5b89\u88c5\u8f93\u51fa: {install_out[:200]}")
-            except Exception as e2:
-                print(f"  \u26a0\ufe0f \u5907\u7528 SSH \u5931\u8d25: {e2}")
 
         client.close()
         print("  \u2705 VPS \u914d\u7f6e\u5df2\u66f4\u65b0\uff0c\u4fdd\u6d3b\u5df2\u91cd\u542f")
@@ -555,14 +536,8 @@ def run():
 
         detail = api_call("GET", f"/api/containers/{cid}")
         token = None
-        container_ip = None
-        container_ssh_port = None
         if detail:
             token = detail.get("token") or detail.get("containerToken")
-            container_ssh_port = detail.get("sshPort")
-            history = detail.get("containerHistory") or []
-            if history:
-                container_ip = history[0].get("containerNodeIP")
 
         if not token:
             print("  \u26a0\ufe0f API \u672a\u627e\u5230 Token\uff0c\u5c1d\u8bd5\u4ece\u6d4f\u89c8\u5668\u83b7\u53d6...")
@@ -686,7 +661,7 @@ def run():
         # Update VPS
         if token:
             print("  \U0001f4e1 \u66f4\u65b0 VPS \u4fdd\u6d3b\u914d\u7f6e...")
-            vps_ok = update_vps_config(cid, token, container_ip, container_ssh_port)
+            vps_ok = update_vps_config(cid, token)
         else:
             print("  \u274c \u65e0 Token\uff0c\u65e0\u6cd5\u66f4\u65b0 VPS")
             vps_ok = False
