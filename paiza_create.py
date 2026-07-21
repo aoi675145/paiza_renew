@@ -566,7 +566,7 @@ def run():
                      f"NZ_UUID={NZ_UUID} ./agent.sh")
         NEZHA_CMD = os.environ.get("NEZHA_CMD", NEZHA_CMD)
 
-        print("  \U0001f4bb \u6253\u5f00\u7ec8\u7aef\uff0c\u5b89\u88c5 sb.sh...")
+        print("  \U0001f4bb \u6253\u5f00\u7ec8\u7aef\uff0c\u5b89\u88c5\u542f\u52a8\u811a\u672c...")
         try:
             driver.get(f"https://paiza.cloud/containers/{cid}/show")
             time.sleep(5)
@@ -647,10 +647,9 @@ def run():
             """)
             terminal_ok = "sb.sh" in output_check or "agent.sh" in output_check
             if terminal_ok:
-                print("  \u2705 sb.sh \u5b89\u88c5\u547d\u4ee4\u5df2\u53d1\u9001")
+                print("  \u2705 \u5b89\u88c5\u547d\u4ee4\u5df2\u53d1\u9001")
             else:
                 print("  \u26a0\ufe0f \u7ec8\u7aef\u672a\u62d3\u5c55\u5230\u547d\u4ee4")
-            nezha_status = "\u2705 \u5df2\u5b89\u88c5" if terminal_ok else "\u26a0\ufe0f \u547d\u4ee4\u5df2\u53d1\u9001"
             nezha_status = "\u2705 \u5df2\u5b89\u88c5" if terminal_ok else "\u26a0\ufe0f \u547d\u4ee4\u5df2\u53d1\u9001"
         except Exception as e:
             print(f"  \u274c \u7ec8\u7aef\u4ea4\u4e92\u5931\u8d25: {e}")
