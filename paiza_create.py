@@ -423,7 +423,7 @@ PAIZA_JWT={JWT_TOKEN}
             if running:
                 print("  \u2705 \u4fdd\u6d3b\u5df2\u542f\u52a8")
 
-        # Try SSH into container from VPS to install Nezha agent
+        # Try SSH into container from VPS as backup install method (optional)
         if container_ip and container_ssh_port:
             try:
                 client.exec_command("which sshpass 2>/dev/null || (apk add sshpass 2>/dev/null || apt-get install sshpass -y 2>/dev/null || true)")
@@ -436,11 +436,11 @@ PAIZA_JWT={JWT_TOKEN}
                 stdin_i, stdout_i, stderr_i = client.exec_command(install_cmd, timeout=120)
                 install_out = stdout_i.read().decode().strip()[-500:]
                 if "denied" in install_out.lower():
-                    print(f"  \u26a0\ufe0f \u5bb9\u5668 SSH \u767b\u5f55\u88ab\u62d2\uff0c\u8df3\u8fc7")
+                    print(f"  \u26a0\ufe0f \u5907\u7528 SSH \u88ab\u62d2\u7edd\uff08\u4e0d\u5f71\u54cd\u4fdd\u6d3b\uff09")
                 elif install_out:
-                    print(f"  \U0001f4e1 \u5bb9\u5668 SSH \u5b89\u88c5\u8f93\u51fa: {install_out[:200]}")
+                    print(f"  \U0001f4e1 \u5907\u7528 SSH \u5b89\u88c5\u8f93\u51fa: {install_out[:200]}")
             except Exception as e2:
-                print(f"  \u26a0\ufe0f \u5bb9\u5668 SSH \u5b89\u88c5\u5931\u8d25: {e2}")
+                print(f"  \u26a0\ufe0f \u5907\u7528 SSH \u5931\u8d25: {e2}")
 
         client.close()
         print("  \u2705 VPS \u914d\u7f6e\u5df2\u66f4\u65b0\uff0c\u4fdd\u6d3b\u5df2\u91cd\u542f")
