@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: 开启 WARP（绕过 Google 音频验证码 IP 限制）
+      - name: 开启 WARP
         uses: fscarmen/warp-on-actions@v1.3
         with:
           stack: dual
@@ -46,7 +46,7 @@ jobs:
           pip install selenium requests SpeechRecognition pydub chromedriver-autoinstaller paramiko
           python -c "import chromedriver_autoinstaller; chromedriver_autoinstaller.install()"
           sudo apt-get install -y -qq sshpass
-      - name: 创建容器 + 安装哪吒探针
+      - name: 执行脚本
         env:
           TG_BOT: ${{ secrets.TG_BOT }}
           NEZHA_SERVER: ${{ secrets.NEZHA_SERVER }}
