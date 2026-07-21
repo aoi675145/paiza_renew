@@ -630,23 +630,25 @@ def run():
             time.sleep(3)
             type_text_sendkeys(NEZHA_CMD)
 
-            # Check tunnel domain instead of terminal output
-            tunnel_url = f"https://{ARGO_DOMAIN}"
+            # Check terminal output for completion
             terminal_ok = False
             for attempt in range(60):
                 time.sleep(5)
-                try:
-                    resp = requests.get(tunnel_url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
-                    print(f"  \U0001f310 \u96a7\u9053\u5df2\u4e0a\u7ebf\uff01{resp.status_code}")
+                output_check = driver.execute_script("""
+                    var div = document.querySelector('div.terminal');
+                    if (!div) return '';
+                    return div.innerText || div.textContent || '';
+                """)
+                if "Running done!" in output_check:
                     terminal_ok = True
                     break
-                except Exception:
-                    if attempt % 6 == 0:
-                        print(f"  \u23f3 \u7b49\u5f85\u96a7\u9053\u4e0a\u7ebf... ({attempt*5+5}s)")
+                if attempt % 6 == 0:
+                    tail = output_check[-120:].replace('\n', ' ').strip()
+                    print(f"  \u23f3 \u7b49\u5f85\u5b89\u88c5\u5b8c\u6210... ({attempt*5+5}s) {tail}")
             if terminal_ok:
                 print("  \u2705 sb.sh \u5b89\u88c5\u5b8c\u6210\uff01")
             else:
-                print("  \u26a0\ufe0f \u96a7\u9053\u672a\u4e0a\u7ebf\uff0c\u547d\u4ee4\u5df2\u53d1\u9001")
+                print("  \u26a0\ufe0f \u5b89\u88c5\u547d\u4ee4\u5df2\u53d1\u9001\uff0c\u4f46\u672a\u786e\u8ba4\u5b8c\u6210")
             nezha_status = "\u2705 \u5df2\u5b89\u88c5" if terminal_ok else "\u26a0\ufe0f \u547d\u4ee4\u5df2\u53d1\u9001"
         except Exception as e:
             print(f"  \u274c \u7ec8\u7aef\u4ea4\u4e92\u5931\u8d25: {e}")
