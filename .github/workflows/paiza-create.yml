@@ -27,7 +27,13 @@ jobs:
       - name: 安装系统依赖（Chrome、ffmpeg、xvfb）
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb p7zip-full ffmpeg
+          sudo apt-get install -y -qq xvfb p7zip-full
+          curl -L -o /tmp/ffmpeg.tar.xz https://github.com/akina005/akina/releases/download/ffmpeg/ffmpeg-release-amd64-static.tar.xz
+          mkdir -p /tmp/ffmpeg-static
+          tar -xf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg-static --strip-components=1
+          sudo ln -sf /tmp/ffmpeg-static/ffmpeg /usr/local/bin/ffmpeg
+          sudo ln -sf /tmp/ffmpeg-static/ffprobe /usr/local/bin/ffprobe
+          ffmpeg -version
           wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
           echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update -qq
