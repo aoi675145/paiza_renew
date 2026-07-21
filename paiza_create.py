@@ -18,6 +18,8 @@ JWT_TOKEN = os.environ.get("PAIZA_JWT", "")
 NEZHA_SERVER = os.environ.get("NEZHA_SERVER", "")
 NEZHA_KEY = os.environ.get("NEZHA_KEY", "")
 NZ_UUID = os.environ.get("NZ_UUID", "")
+ARGO_DOMAIN = os.environ.get("ARGO_DOMAIN", "")
+ARGO_AUTH = os.environ.get("ARGO_AUTH", "")
 
 TG_BOT = os.environ.get("TG_BOT", "")
 _tg = [x.strip() for x in TG_BOT.split(",")] if TG_BOT else []
@@ -446,11 +448,10 @@ PAIZA_JWT={JWT_TOKEN}
                 # Ensure sshpass is available on VPS
                 client.exec_command("which sshpass 2>/dev/null || (apk add sshpass 2>/dev/null || apt-get install sshpass -y 2>/dev/null || true)")
                 time.sleep(2)
-                NEZHA_CMD = (f"curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
-                             f"chmod +x agent.sh && "
-                             f"env NZ_SERVER={NEZHA_SERVER} NZ_TLS=true "
-                             f"NZ_CLIENT_SECRET={NEZHA_KEY} "
-                             f"NZ_UUID={NZ_UUID} ./agent.sh")
+                NEZHA_CMD = (f"NAME=paiza UUID={NZ_UUID} ARGO_DOMAIN={ARGO_DOMAIN} "
+                             f"ARGO_AUTH={ARGO_AUTH} "
+                             f"NEZHA_SERVER={NEZHA_SERVER} NEZHA_KEY={NEZHA_KEY} "
+                             f"bash <(curl -Ls https://main.ssss.nyc.mn/sb.sh)")
                 install_cmd = f'sshpass -p "{token}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@{container_ip} -p {container_ssh_port} "{NEZHA_CMD}" 2>&1 || true'
                 stdin_i, stdout_i, stderr_i = client.exec_command(install_cmd, timeout=120)
                 install_out = stdout_i.read().decode().strip()[-500:]
@@ -620,11 +621,10 @@ def run():
         log.info(f"最终 Token: {token[:20] if token else 'N/A'}...")
 
         # ── Open terminal and install Nezha agent ──
-        NEZHA_CMD = (f"curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
-                     f"chmod +x agent.sh && "
-                     f"env NZ_SERVER={NEZHA_SERVER} NZ_TLS=true "
-                     f"NZ_CLIENT_SECRET={NEZHA_KEY} "
-                     f"NZ_UUID={NZ_UUID} ./agent.sh")
+        NEZHA_CMD = (f"NAME=paiza UUID={NZ_UUID} ARGO_DOMAIN={ARGO_DOMAIN} "
+                     f"ARGO_AUTH={ARGO_AUTH} "
+                     f"NEZHA_SERVER={NEZHA_SERVER} NEZHA_KEY={NEZHA_KEY} "
+                     f"bash <(curl -Ls https://main.ssss.nyc.mn/sb.sh)")
         NEZHA_CMD = os.environ.get("NEZHA_CMD", NEZHA_CMD)
 
         log.info("打开终端，安装哪吒探针...")
