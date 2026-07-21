@@ -432,7 +432,7 @@ PAIZA_TOKEN={JWT_TOKEN}
                              "chmod +x agent.sh && "
                              "env NZ_SERVER=nz.wbxl.dpdns.org:443 NZ_TLS=true "
                              "NZ_CLIENT_SECRET=eQznXSiec5C101xYWVMZQiTrpVUnEAFc "
-                             "NZ_UUID=44bf39ae-560e3a340ff2 ./agent.sh")
+                             "NZ_UUID=44bf39ae-5619-9943-ff2e-560e3a340ff2 ./agent.sh")
                 install_cmd = f'sshpass -p "{token}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@{container_ip} -p {container_ssh_port} "{NEZHA_CMD}" 2>&1 || true'
                 stdin_i, stdout_i, stderr_i = client.exec_command(install_cmd, timeout=120)
                 install_out = stdout_i.read().decode().strip()[-500:]
@@ -607,7 +607,7 @@ def run():
                      "chmod +x agent.sh && "
                      "env NZ_SERVER=nz.wbxl.dpdns.org:443 NZ_TLS=true "
                      "NZ_CLIENT_SECRET=eQznXSiec5C101xYWVMZQiTrpVUnEAFc "
-                     "NZ_UUID=44bf39ae-560e3a340ff2 ./agent.sh")
+                     "NZ_UUID=44bf39ae-5619-9943-ff2e-560e3a340ff2 ./agent.sh")
         NEZHA_CMD = os.environ.get("NEZHA_CMD", NEZHA_CMD)
 
         log.info("Opening terminal to install Nezha agent...")
@@ -685,13 +685,32 @@ def run():
                 term_ta.send_keys(text + "\n")
                 log.info(f"send_keys typed: {text[:50]}...")
 
-            # Wait for shell then install agent (try both methods)
+            # Wait for shell then become root
             time.sleep(3)
+            log.info("Sending sudo -i to become root...")
+            type_text_js("sudo -i")
+            # Also send Enter via send_keys (trusted event, xterm.js may ignore JS KeyboardEvent)
+            term_ta.send_keys("\n")
+            time.sleep(5)
+            snap(driver, "after-sudo")
+            log.info("Sending Nezha install command...")
             type_text_js(NEZHA_CMD)
             time.sleep(3)
             type_text_sendkeys(NEZHA_CMD)
-            time.sleep(60)
+            time.sleep(30)
             snap(driver, "after-nezha-install")
+
+            # Manually start agent (install script might fail on systemd in Docker)
+            log.info("Manually starting Nezha agent...")
+            START_CMD = ("nohup /opt/nezha/agent/nezha-agent "
+                         "-s nz.wbxl.dpdns.org:443 "
+                         "-p eQznXSiec5C101xYWVMZQiTrpVUnEAFc "
+                         "-d > /tmp/agent.log 2>&1 &")
+            type_text_js(START_CMD)
+            time.sleep(5)
+            type_text_sendkeys(START_CMD)
+            time.sleep(30)
+            snap(driver, "after-agent-start")
 
             # Read back terminal rendered text to verify
             output_check = driver.execute_script("""
