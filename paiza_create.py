@@ -121,17 +121,17 @@ def is_recaptcha_solved(driver):
 
 
 def click_recaptcha_checkbox(driver):
-    log.info("Click reCAPTCHA checkbox...")
+    log.info("点击 reCAPTCHA 复选框...")
     driver.switch_to.default_content()
     if switch_to_frame(driver, "anchor"):
         try:
             driver.find_element(By.ID, "recaptcha-anchor").click()
-            log.info("Checkbox clicked")
+            log.info("复选框已点击")
         except Exception as e:
-            log.warning(f"Checkbox click failed: {e}")
+            log.warning(f"复选框点击失败: {e}")
         driver.switch_to.parent_frame()
     else:
-        log.warning("No anchor frame found")
+        log.warning("未找到 anchor 框架")
 
 
 def switch_to_audio(driver):
@@ -216,13 +216,13 @@ def download_audio(url):
             resp.raise_for_status()
             if len(resp.content) < 1000:
                 continue
-            log.info(f"Audio: {len(resp.content)} bytes")
+            log.info(f"音频: {len(resp.content)} 字节")
             p = tempfile.mktemp(suffix=".mp3")
             with open(p, "wb") as f:
                 f.write(resp.content)
             return p
         except Exception as e:
-            log.warning(f"Audio dl fail: {e}")
+            log.warning(f"音频下载失败: {e}")
     return None
 
 
@@ -241,7 +241,7 @@ def recognize_audio(mp3_path):
             pass
         return text
     except Exception as e:
-        log.warning(f"Recognize fail: {e}")
+        log.warning(f"语音识别失败: {e}")
         return None
 
 
@@ -275,22 +275,22 @@ def reload_challenge(driver):
 
 
 def solve_recaptcha(driver):
-    log.info("🎧 Solving reCAPTCHA via audio...")
+    log.info("🎧 音频验证码破解中...")
     time.sleep(3)
     for i in range(MAX_CAPTCHA):
-        log.info(f"--- Attempt {i+1}/{MAX_CAPTCHA} ---")
+        log.info(f"--- 第 {i+1}/{MAX_CAPTCHA} 次尝试 ---")
         if is_recaptcha_solved(driver):
-            log.info("Solved!")
+            log.info("验证码已通过！")
             return True
         if i == 0:
             click_recaptcha_checkbox(driver)
             time.sleep(3)
             snap(driver, "checkbox")
             if is_recaptcha_solved(driver):
-                log.info("Solved by checkbox!")
+                log.info("复选框已通过验证码！")
                 return True
         if not switch_to_frame(driver, "bframe"):
-            log.info("No bframe, waiting...")
+            log.info("未找到 bframe，等待中...")
             time.sleep(3)
             continue
         is_audio = driver.execute_script(
@@ -298,7 +298,7 @@ def solve_recaptcha(driver):
         )
         driver.switch_to.parent_frame()
         if not is_audio:
-            log.info("Switching to audio...")
+            log.info("切换到音频模式...")
             switch_to_audio(driver)
             time.sleep(2)
         snap(driver, f"audio-{i+1}")
@@ -320,16 +320,16 @@ def solve_recaptcha(driver):
             reload_challenge(driver)
             time.sleep(3)
             continue
-        log.info(f"Recognized: [{text}]")
+        log.info(f"识别结果: [{text}]")
         fill_and_verify(driver, text)
         time.sleep(5)
         if is_recaptcha_solved(driver):
-            log.info("Solved!")
+            log.info("验证码已通过！")
             return True
-        log.warning("Wrong, retry...")
+        log.warning("答案错误，重试...")
         reload_challenge(driver)
         time.sleep(3)
-    raise RuntimeError("Max captcha attempts")
+    raise RuntimeError("验证码尝试次数耗尽")
 
 
 # ── API ──
@@ -348,7 +348,7 @@ def api_call(method, path, data=None):
             raw = resp.read().decode()
             return json.loads(raw) if raw.strip() else {}
     except urllib.error.HTTPError as e:
-        log.warning(f"API {method} {path}: {e.code}")
+        log.warning(f"API 请求失败 {method} {path}: {e.code}")
         # 204 No Content is success for DELETE
         if e.code == 404:
             return {}
@@ -362,9 +362,9 @@ def get_containers():
 def delete_container(cid):
     result = api_call("DELETE", f"/api/containers/{cid}")
     if result is None:
-        log.warning(f"Delete may have failed for {cid[:12]}")
+        log.warning(f"删除可能失败: {cid[:12]}")
     else:
-        log.info(f"Deleted: {cid[:12]}")
+        log.info(f"已删除: {cid[:12]}")
 
 
 def update_vps_config(cid, token, container_ip=None, container_ssh_port=None):
@@ -390,7 +390,7 @@ PAIZA_TOKEN={JWT_TOKEN}
         # Check if python3 exists, fallback to python
         stdin2, stdout2, stderr2 = client.exec_command("which python3 || which python || echo 'no python'")
         py = stdout2.read().decode().strip()
-        log.info(f"VPS python: {py}")
+        log.info(f"VPS Python: {py}")
 
         # Ensure requests module is installed
         client.exec_command(f"{py} -c 'import requests' 2>/dev/null || pip3 install requests 2>/dev/null || {py} -m pip install requests 2>/dev/null || true")
@@ -405,7 +405,7 @@ PAIZA_TOKEN={JWT_TOKEN}
             stdin_s.flush()
             stdin_s.channel.shutdown_write()
             time.sleep(2)
-            log.info("Uploaded paiza_renew.py to VPS")
+            log.info("已上传 paiza_renew.py 到 VPS")
 
         client.exec_command("pkill -f 'paiza_renew.py' 2>/dev/null || true")
         time.sleep(1)
@@ -422,7 +422,7 @@ PAIZA_TOKEN={JWT_TOKEN}
             # Check if process is running
             stdin4, stdout4, stderr4 = client.exec_command("ps aux | grep -v grep | grep paiza_renew || true")
             running = stdout4.read().decode().strip()
-            log.info(f"Keepalive running: {bool(running)}")
+            log.info(f"保活运行中: {bool(running)}")
             if running:
                 log.info(f"PID: {running[:100]}")
 
@@ -441,15 +441,15 @@ PAIZA_TOKEN={JWT_TOKEN}
                 stdin_i, stdout_i, stderr_i = client.exec_command(install_cmd, timeout=120)
                 install_out = stdout_i.read().decode().strip()[-500:]
                 if install_out:
-                    log.info(f"Container SSH install: {install_out}")
+                    log.info(f"容器 SSH 安装输出: {install_out}")
             except Exception as e2:
-                log.warning(f"Container SSH install failed: {e2}")
+                log.warning(f"容器 SSH 安装失败: {e2}")
 
         client.close()
-        log.info("VPS config updated, keepalive restarted")
+        log.info("VPS 配置已更新，保活已重启")
         return True
     except ImportError:
-        log.warning("paramiko not installed, trying subprocess...")
+        log.warning("paramiko 未安装，尝试 subprocess...")
         import subprocess
         cmd = f"""sshpass -p '{vps_pass}' ssh -o StrictHostKeyChecking=no root@{vps_host} -p {vps_port} 'cat > /root/paiza_config.txt << EOF
 PAIZA_CONTAINER_ID={cid}
@@ -459,10 +459,10 @@ EOF
 pkill -f "python3 paiza_renew.py" 2>/dev/null || true
 nohup python3 /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &'"""
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-        log.info(f"VPS subprocess: {result.stdout[-200:]} {result.stderr[-200:]}")
+        log.info(f"VPS 子进程: {result.stdout[-200:]} {result.stderr[-200:]}")
         return True
     except Exception as e:
-        log.error(f"VPS update failed: {e}")
+        log.error(f"VPS 更新失败: {e}")
         return False
 
 
@@ -471,22 +471,22 @@ nohup python3 /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &'"""
 def run():
     ensure_dir()
     log.info("=" * 50)
-    log.info("PaizaCloud Container Auto-Create")
+    log.info("PaizaCloud 容器自动创建")
     log.info("=" * 50)
 
     # Step 0: Delete any existing containers
-    log.info("Checking for old containers to delete...")
+    log.info("检查旧容器并清理...")
     try:
         existing = get_containers()
         if existing and isinstance(existing, list):
             for c in existing:
                 old_id = c.get("_id") or c.get("id", "")
                 old_short = c.get("containerIdShort", "") or old_id[:12]
-                log.info(f"Deleting old container: {old_id} ({old_short})")
+                log.info(f"删除旧容器: {old_id} ({old_short})")
                 delete_container(old_id)
                 time.sleep(2)
     except Exception as e:
-        log.warning(f"Delete step failed (non-fatal): {e}")
+        log.warning(f"删除步骤失败（非致命）: {e}")
 
     opts = Options()
     opts.add_argument("--no-sandbox")
@@ -501,7 +501,7 @@ def run():
 
     try:
         # Set cookie via CDP before navigation
-        log.info("Setting cookie via CDP...")
+        log.info("通过 CDP 设置 Cookie...")
         driver.execute_cdp_cmd("Network.enable", {})
         driver.execute_cdp_cmd("Network.setCookie", {
             "name": "token",
@@ -509,18 +509,18 @@ def run():
             "domain": "paiza.cloud",
             "path": "/",
         })
-        log.info("Cookie set")
+        log.info("Cookie 已设置")
 
         # Navigate to create page
-        log.info("Opening /containers?new=true ...")
+        log.info("打开创建页面 /containers?new=true ...")
         driver.get("https://paiza.cloud/containers?new=true")
         time.sleep(5)
-        log.info(f"URL: {driver.current_url}")
+        log.info(f"当前 URL: {driver.current_url}")
         snap(driver, "create-page")
 
         # Check if redirected
         if "/en/" in driver.current_url and "containers" not in driver.current_url:
-            log.warning("Redirected to home, trying approach...")
+            log.warning("被重定向到首页，尝试其他方式...")
             driver.get("https://paiza.cloud/containers")
             time.sleep(3)
             snap(driver, "containers-page")
@@ -529,7 +529,7 @@ def run():
                     el = driver.find_element(By.XPATH, f"//*[text()='{sel}']")
                     if el.is_displayed():
                         el.click()
-                        log.info(f"Clicked '{sel}' button")
+                        log.info(f"点击了 '{sel}' 按钮")
                         time.sleep(3)
                         break
                 except Exception:
@@ -542,7 +542,7 @@ def run():
             name_in = driver.find_element(By.CSS_SELECTOR, "input[name='name']")
             if name_in.is_displayed():
                 name_in.send_keys("auto-" + datetime.now().strftime("%m%d%H%M"))
-                log.info("Name filled")
+                log.info("容器名称已填写")
         except Exception:
             pass
 
@@ -551,7 +551,7 @@ def run():
         snap(driver, "captcha-solved")
 
         # Submit
-        log.info("Submitting...")
+        log.info("提交创建...")
         for sel in ["//*[text()='New Server']", "button[type='submit']", "//*[text()='Create']"]:
             try:
                 if sel.startswith("//"):
@@ -560,7 +560,7 @@ def run():
                     el = driver.find_element(By.CSS_SELECTOR, sel)
                 if el.is_displayed():
                     el.click()
-                    log.info(f"Clicked: {sel}")
+                    log.info(f"点击了: {sel}")
                     break
             except Exception:
                 continue
@@ -571,9 +571,9 @@ def run():
         # Check container created
         containers = get_containers()
         if not containers or len(containers) == 0:
-            raise RuntimeError("No container created after submission")
+            raise RuntimeError("提交后未创建容器")
         cid = containers[0].get("_id") or containers[0].get("id", "")
-        log.info(f"Container created: {cid}")
+        log.info(f"容器已创建: {cid}")
 
         # Get container token from detail
         detail = api_call("GET", f"/api/containers/{cid}")
@@ -582,16 +582,16 @@ def run():
         container_ssh_port = None
         if detail:
             token = detail.get("token") or detail.get("containerToken")
-            log.info(f"Container token: {token[:20] if token else 'N/A'}...")
+            log.info(f"容器 Token: {token[:20] if token else 'N/A'}...")
             # Extract container SSH info
             container_ssh_port = detail.get("sshPort")
             history = detail.get("containerHistory") or []
             if history:
                 container_ip = history[0].get("containerNodeIP")
-            log.info(f"Container SSH: {container_ip}:{container_ssh_port}")
+            log.info(f"容器 SSH: {container_ip}:{container_ssh_port}")
 
         if not token:
-            log.warning("No token found in API, trying browser...")
+            log.warning("API 中未找到 Token，尝试从浏览器获取...")
             driver.get(f"https://paiza.cloud/containers/{cid}/show")
             time.sleep(3)
             token = driver.execute_script("""
@@ -603,7 +603,7 @@ def run():
                     return window.__INITIAL_STATE__ ? (window.__INITIAL_STATE__.containerToken || '') : '';
                 """)
 
-        log.info(f"Final token: {token[:20] if token else 'N/A'}...")
+        log.info(f"最终 Token: {token[:20] if token else 'N/A'}...")
 
         # ── Open terminal and install Nezha agent ──
         NEZHA_CMD = ("curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
@@ -613,7 +613,7 @@ def run():
                      "NZ_UUID=44bf39ae-5619-9943-ff2e-560e3a340ff2 ./agent.sh")
         NEZHA_CMD = os.environ.get("NEZHA_CMD", NEZHA_CMD)
 
-        log.info("Opening terminal to install Nezha agent...")
+        log.info("打开终端，安装哪吒探针...")
         try:
             driver.get(f"https://paiza.cloud/containers/{cid}/show")
             time.sleep(5)
@@ -635,7 +635,7 @@ def run():
                 }
                 return false;
             """)
-            log.info(f"Terminal opened via: {clicked}")
+            log.info(f"终端打开方式: {clicked}")
             time.sleep(8)
             snap(driver, "terminal-opened")
 
@@ -647,7 +647,7 @@ def run():
                     return term.querySelector('textarea') !== null;
                 """)
             )
-            log.info("Terminal textarea present")
+            log.info("终端文本区域已就绪")
 
             # Find terminal textarea
             term_ta = None
@@ -663,7 +663,7 @@ def run():
                     term_ta = driver.find_element(By.CSS_SELECTOR, "div.terminal textarea")
                 except Exception:
                     pass
-            log.info(f"Terminal textarea found: {term_ta is not None}")
+            log.info(f"终端文本区域找到: {term_ta is not None}")
 
             # Reliable key sender: dispatch input event via JS
             def type_text_js(text):
@@ -682,21 +682,21 @@ def run():
                         }));
                     });
                 """, term_ta, text)
-                log.info(f"JS typed: {text[:50]}...")
+                log.info(f"JS 输入: {text[:50]}...")
 
             def type_text_sendkeys(text):
                 term_ta.send_keys(text + "\n")
-                log.info(f"send_keys typed: {text[:50]}...")
+                log.info(f"send_keys 输入: {text[:50]}...")
 
             # Wait for shell then become root
             time.sleep(3)
-            log.info("Sending sudo -i to become root...")
+            log.info("发送 sudo -i 提权...")
             type_text_js("sudo -i")
             # Also send Enter via send_keys (trusted event, xterm.js may ignore JS KeyboardEvent)
             term_ta.send_keys("\n")
             time.sleep(5)
             snap(driver, "after-sudo")
-            log.info("Sending Nezha install command...")
+            log.info("发送哪吒安装命令...")
             type_text_js(NEZHA_CMD)
             time.sleep(3)
             type_text_sendkeys(NEZHA_CMD)
@@ -704,7 +704,7 @@ def run():
             snap(driver, "after-nezha-install")
 
             # Manually start agent (install script might fail on systemd in Docker)
-            log.info("Manually starting Nezha agent...")
+            log.info("手动启动哪吒探针...")
             START_CMD = ("nohup /opt/nezha/agent/nezha-agent "
                          "-s nz.wbxl.dpdns.org:443 "
                          "-p eQznXSiec5C101xYWVMZQiTrpVUnEAFc "
@@ -726,14 +726,14 @@ def run():
                 }
                 return (div.innerText || div.textContent || '').slice(-500);
             """)
-            log.info(f"Terminal output: {output_check[:200]}")
+            log.info(f"终端输出: {output_check[:200]}")
 
-            log.info("Nezha agent installation commands sent")
+            log.info("哪吒安装命令已发送")
 
             terminal_ok = bool(output_check) and "successfully installed" in output_check.lower()
             nezha_status = "✅ 已安装" if terminal_ok else "⚠️ 命令已发送"
         except Exception as e:
-            log.warning(f"Terminal interaction failed: {e}")
+            log.warning(f"终端交互失败: {e}")
             terminal_ok = False
             nezha_status = f"❌ 终端异常"
 
@@ -741,7 +741,7 @@ def run():
         if token:
             vps_ok = update_vps_config(cid, token, container_ip, container_ssh_port)
         else:
-            log.error("Cannot update VPS - no token")
+            log.error("无法更新 VPS - 无 Token")
             vps_ok = False
 
         # ── Consolidated notification ──

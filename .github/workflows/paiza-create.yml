@@ -12,12 +12,12 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: Enable WARP
+      - name: 开启 WARP（绕过 Google 音频验证码 IP 限制）
         uses: fscarmen/warp-on-actions@v1.3
         with:
           stack: dual
           mode: client
-      - name: Fix DNS
+      - name: 修复 DNS
         run: |
           sudo systemctl stop systemd-resolved 2>/dev/null || true
           sudo systemctl disable systemd-resolved 2>/dev/null || true

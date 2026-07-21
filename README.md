@@ -43,9 +43,6 @@ sudo -i 提权 → 安装哪吒探针 → nohup 启动 agent →
 
 ### 哪吒探针
 
-- 面板：`https://nz.wbxl.dpdns.org/server/616`
-- Agent UUID：`44bf39ae-5619-9943-ff2e-560e3a340ff2`
-- Client Secret：`eQznXSiec5C101xYWVMZQiTrpVUnEAFc`
 - 安装方式：直接 curl 官方 install.sh + nohup 后台运行（Docker 容器无 systemd）
 
 ## 部署 VPS 保活
