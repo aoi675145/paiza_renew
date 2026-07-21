@@ -388,17 +388,38 @@ PAIZA_TOKEN={JWT_TOKEN}
         py = stdout2.read().decode().strip()
         log.info(f"VPS python: {py}")
 
+        # Ensure requests module is installed
+        client.exec_command(f"{py} -c 'import requests' 2>/dev/null || pip3 install requests 2>/dev/null || {py} -m pip install requests 2>/dev/null || true")
+        time.sleep(3)
+
+        # Upload latest paiza_renew.py to VPS
+        renew_script = Path(__file__).resolve().parent / "paiza_renew.py"
+        if renew_script.exists():
+            script_content = renew_script.read_text()
+            stdin_s, stdout_s, stderr_s = client.exec_command(f"cat > /root/paiza_renew.py")
+            stdin_s.write(script_content)
+            stdin_s.flush()
+            stdin_s.channel.shutdown_write()
+            time.sleep(2)
+            log.info("Uploaded paiza_renew.py to VPS")
+
         client.exec_command("pkill -f 'paiza_renew.py' 2>/dev/null || true")
         time.sleep(1)
         client.exec_command(f"nohup {py} /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &")
-        time.sleep(3)
+        time.sleep(5)
 
-        # Verify it's running
-        stdin3, stdout3, stderr3 = client.exec_command("ps aux | grep paiza_renew | grep -v grep")
-        running = stdout3.read().decode().strip()
-        log.info(f"Keepalive running: {bool(running)}")
-        if running:
-            log.info(f"PID: {running[:100]}")
+        # Check logs for errors
+        stdin3, stdout3, stderr3 = client.exec_command("cat /root/paiza_renew.log 2>/dev/null | tail -10")
+        vps_log = stdout3.read().decode().strip()
+        if vps_log:
+            log.info(f"VPS log: {vps_log}")
+        else:
+            # Check if process is running
+            stdin4, stdout4, stderr4 = client.exec_command("ps aux | grep -v grep | grep paiza_renew || true")
+            running = stdout4.read().decode().strip()
+            log.info(f"Keepalive running: {bool(running)}")
+            if running:
+                log.info(f"PID: {running[:100]}")
 
         client.close()
         log.info("VPS config updated, keepalive restarted")
