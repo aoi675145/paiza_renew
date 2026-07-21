@@ -12,6 +12,7 @@ from selenium.webdriver.chrome.options import Options
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 log = logging.getLogger(__name__)
+logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 JWT_TOKEN = os.environ.get("PAIZA_JWT", "")
 
@@ -415,7 +416,8 @@ PAIZA_JWT={JWT_TOKEN}
         stdin3, stdout3, stderr3 = client.exec_command("cat /root/paiza_renew.log 2>/dev/null | tail -10")
         vps_log = stdout3.read().decode().strip()
         if vps_log:
-            print(f"  \U0001f4e1 \u4fdd\u6d3b\u65e5\u5fd7: {vps_log[:200]}")
+            for vl in vps_log.splitlines():
+                print(f"  \U0001f4e1 {vl.strip()}")
         else:
             stdin4, stdout4, stderr4 = client.exec_command("ps aux | grep -v grep | grep paiza_renew || true")
             running = stdout4.read().decode().strip()
