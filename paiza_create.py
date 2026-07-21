@@ -9,6 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.keys import Keys
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 log = logging.getLogger(__name__)
@@ -620,12 +621,12 @@ def run():
                 """, term_ta, text)
 
             def type_text_sendkeys(text):
-                term_ta.send_keys(text + "\n")
+                term_ta.send_keys(text + Keys.ENTER)
 
             time.sleep(3)
             print("  \U0001f512 sudo -i \u63d0\u6743...")
             type_text_js("sudo -i")
-            term_ta.send_keys("\n")
+            term_ta.send_keys(Keys.ENTER)
             time.sleep(5)
             print("  \U0001f916 \u53d1\u9001\u5b89\u88c5\u547d\u4ee4...")
             type_text_js(NEZHA_CMD)
