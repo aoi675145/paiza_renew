@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys, time, logging, requests, subprocess, json
+import os, sys, time, logging, requests
 from datetime import datetime, timezone
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('paiza_renew')
@@ -8,7 +8,8 @@ CONTAINER_ID = os.getenv('PAIZA_CONTAINER_ID', '')
 CONTAINER_TOKEN = os.getenv('PAIZA_CONTAINER_TOKEN', '')
 JWT_TOKEN = os.getenv('PAIZA_TOKEN', '')
 POST_RESTORE_WAIT = int(os.getenv('PAIZA_POST_RESTORE_WAIT', '30'))
-CREATION_SCRIPT = os.getenv('PAIZA_CREATION_SCRIPT', '/root/paiza_create.py')
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
+GITHUB_REPO = 'aoi675145/paiza_renew'
 
 def api_call(method, path, **kwargs):
     params = kwargs.pop('params', {}); params['container_token'] = CONTAINER_TOKEN
@@ -36,15 +37,16 @@ def restore_snapshot(sid):
     if r.status_code == 200: logger.info('Restore OK'); return True
     logger.error(f'Restore failed: {r.status_code}'); return False
 
-def create_new_container():
-    logger.info('24h limit reached, triggering container creation...')
-    env = os.environ.copy()
-    result = subprocess.run(['python3', CREATION_SCRIPT], capture_output=True, text=True, env=env)
-    logger.info(f'Creation script output: {result.stdout[-500:]}')
-    if result.returncode != 0:
-        logger.error(f'Creation failed: {result.stderr[-500:]}')
-        return False
-    return True
+def trigger_github_workflow():
+    logger.info('Triggering GitHub Actions workflow...')
+    url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/paiza-create.yml/dispatches'
+    headers = {'Authorization': f'Bearer {GITHUB_TOKEN}', 'Accept': 'application/vnd.github.v3+json'}
+    r = requests.post(url, json={'ref': 'master'}, headers=headers, timeout=30)
+    if r.status_code == 204:
+        logger.info('Workflow triggered successfully')
+        return True
+    logger.error(f'Trigger failed: {r.status_code} {r.text[:200]}')
+    return False
 
 def is_expired(container):
     if container.get('state') == 'suspended':
@@ -70,12 +72,12 @@ def main():
             c = get_container(); st = c.get('state','?'); cid = c.get('containerIdShort','') or '-'
             logger.info(f'{st} containerId:{cid}')
             if st == 'expired' or (st == 'suspended' and is_expired(c)):
-                logger.warning('Container expired, creating new one...')
-                if create_new_container():
-                    logger.info('New container created, exiting (will be restarted by creator)')
+                logger.warning('Container expired, triggering workflow...')
+                if trigger_github_workflow():
+                    logger.info('Workflow triggered, exiting')
                     break
                 else:
-                    logger.error('Failed to create new container, retrying in 5min')
+                    logger.error('Failed to trigger workflow, retrying in 5min')
                     time.sleep(300)
                     continue
             if st == 'suspended':
@@ -89,8 +91,8 @@ def main():
         except KeyboardInterrupt: break
         except requests.exceptions.HTTPError as e:
             if e.response.status_code in (403, 404, 410):
-                logger.error(f'Container gone ({e.response.status_code}), triggering creation...')
-                if create_new_container(): break
+                logger.error(f'Container gone ({e.response.status_code}), triggering workflow...')
+                if trigger_github_workflow(): break
             time.sleep(30)
         except Exception as e: logger.error(f'Error {e}'); time.sleep(30)
 if __name__ == '__main__': main()

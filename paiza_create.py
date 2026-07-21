@@ -351,30 +351,55 @@ def get_containers():
     return api_call("GET", "/api/containers")
 
 
-def get_container_detail(cid):
-    return api_call("GET", f"/api/containers/{cid}")
+def delete_container(cid):
+    return api_call("DELETE", f"/api/containers/{cid}")
 
 
-def get_ssh_password(cid):
-    """Try to get SSH password from container detail."""
-    detail = get_container_detail(cid)
-    if not detail:
-        return None
-    # Look for SSH password in various possible fields
-    for key in ['sshPassword', 'password', 'ssh_password', 'credentials']:
-        if key in detail:
-            return detail[key]
-    # Check nested objects
-    if 'ssh' in detail:
-        ssh = detail['ssh']
-        if isinstance(ssh, dict):
-            return ssh.get('password') or ssh.get('passwordHash')
-    if 'credentials' in detail:
-        creds = detail['credentials']
-        if isinstance(creds, dict):
-            return creds.get('password')
-    log.info(f"Container detail keys: {list(detail.keys())}")
-    return None
+def update_vps_config(cid, token):
+    vps_host = os.environ.get("VPS_HOST", "31.22.111.169")
+    vps_port = int(os.environ.get("VPS_PORT", "20973"))
+    vps_pass = os.environ.get("VPS_PASSWORD", "A*yS7Y5U^7yZmLdv")
+    try:
+        import paramiko
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(vps_host, port=vps_port, username="root", password=vps_pass, timeout=30)
+
+        config = f"""PAIZA_CONTAINER_ID={cid}
+PAIZA_CONTAINER_TOKEN={token}
+PAIZA_TOKEN={JWT_TOKEN}
+"""
+        stdin, stdout, stderr = client.exec_command(f"cat > /root/paiza_config.txt")
+        stdin.write(config)
+        stdin.flush()
+        stdin.channel.shutdown_write()
+        time.sleep(2)
+
+        client.exec_command("pkill -f 'python3 paiza_renew.py' 2>/dev/null || true")
+        time.sleep(1)
+        client.exec_command("nohup python3 /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &")
+        time.sleep(2)
+
+        client.close()
+        log.info("VPS config updated, keepalive restarted")
+        send_tg(f"✅ VPS keepalive updated for {cid[:12]}")
+        return True
+    except ImportError:
+        log.warning("paramiko not installed, trying subprocess...")
+        import subprocess
+        cmd = f"""sshpass -p '{vps_pass}' ssh -o StrictHostKeyChecking=no root@{vps_host} -p {vps_port} 'cat > /root/paiza_config.txt << EOF
+PAIZA_CONTAINER_ID={cid}
+PAIZA_CONTAINER_TOKEN={token}
+PAIZA_TOKEN={JWT_TOKEN}
+EOF
+pkill -f "python3 paiza_renew.py" 2>/dev/null || true
+nohup python3 /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &'"""
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        log.info(f"VPS subprocess: {result.stdout[-200:]} {result.stderr[-200:]}")
+        return True
+    except Exception as e:
+        log.error(f"VPS update failed: {e}")
+        return False
 
 
 # ── Main ──
@@ -384,6 +409,17 @@ def run():
     log.info("=" * 50)
     log.info("PaizaCloud Container Auto-Create")
     log.info("=" * 50)
+
+    # Step 0: Delete any existing containers
+    log.info("Checking for old containers to delete...")
+    existing = get_containers()
+    if existing:
+        for c in existing:
+            old_id = c.get("_id") or c.get("id", "")
+            old_short = c.get("containerIdShort", "") or old_id[:12]
+            log.info(f"Deleting old container: {old_id} ({old_short})")
+            delete_container(old_id)
+            time.sleep(2)
 
     opts = Options()
     opts.add_argument("--no-sandbox")
@@ -418,12 +454,9 @@ def run():
         # Check if redirected
         if "/en/" in driver.current_url and "containers" not in driver.current_url:
             log.warning("Redirected to home, trying approach...")
-            # Maybe need to navigate to containers first
             driver.get("https://paiza.cloud/containers")
             time.sleep(3)
             snap(driver, "containers-page")
-
-            # Click "New" button to open modal
             for sel in ["New", "Create", "作成", "+"]:
                 try:
                     el = driver.find_element(By.XPATH, f"//*[text()='{sel}']")
@@ -468,328 +501,122 @@ def run():
         time.sleep(15)
         snap(driver, "after-submit")
 
-        # Check containers via API
+        # Check container created
         containers = get_containers()
-        if containers and len(containers) > 0:
-            cid = containers[0].get("_id") or containers[0].get("id", "")
-            log.info(f"Container created: {cid}")
-            
-            # Get container details for SSH
-            detail = get_container_detail(cid)
-            if detail:
-                log.info(f"Container detail keys: {list(detail.keys())}")
-                ssh_port = detail.get('sshPort') or detail.get('port')
-                ssh_host = detail.get('sshHost') or detail.get('host')
-                ssh_user = detail.get('sshUser') or detail.get('username')
-                ssh_pass = get_ssh_password(cid)
-                log.info(f"SSH: {ssh_host}:{ssh_port} user={ssh_user} pass={ssh_pass}")
-            
-            # ── Setup keepalive on VPS ──
-            log.info("Setting up keepalive on VPS...")
-            try:
-                # Get container token from detail
-                container_token = None
-                if detail:
-                    container_token = detail.get('token') or detail.get('containerToken')
-                
-                if container_token and cid:
-                    # Update VPS with new container info
-                    vps_host = os.environ.get("VPS_HOST", "31.22.111.169")
-                    vps_port = os.environ.get("VPS_PORT", "20973")
-                    vps_pass = os.environ.get("VPS_PASSWORD", "A*yS7Y5U^7yZmLdv")
-                    
-                    try:
-                        import paramiko
-                        client = paramiko.SSHClient()
-                        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                        client.connect(vps_host, port=int(vps_port), username="root", password=vps_pass, timeout=30)
-                        
-                        # Update container info in paiza_config.txt
-                        config_cmd = f"""
-                        cd /root && cat > paiza_config.txt << 'EOF'
-PAIZA_CONTAINER_ID={cid}
-PAIZA_CONTAINER_TOKEN={container_token}
-PAIZA_TOKEN={JWT_TOKEN}
-EOF
-"""
-                        stdin, stdout, stderr = client.exec_command(config_cmd)
-                        time.sleep(2)
-                        
-                        # Restart keepalive service
-                        stdin.write("pkill -f 'python3 paiza_renew.py' || true\n")
-                        stdin.flush()
-                        time.sleep(1)
-                        stdin.write("nohup python3 /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &\n")
-                        stdin.flush()
-                        time.sleep(3)
-                        
-                        output = stdout.read().decode()
-                        log.info(f"VPS setup output: {output[-500:]}")
-                        
-                        client.close()
-                        log.info("Keepalive setup completed")
-                        send_tg(f"✅ Keepalive setup on VPS for {cid[:12]}")
-                        
-                    except Exception as e:
-                        log.error(f"VPS setup failed: {e}")
-                        send_tg(f"❌ VPS setup failed: {e}")
-                else:
-                    log.warning("No container token available for keepalive setup")
-                    
-            except Exception as e:
-                log.error(f"Keepalive setup error: {e}")
-
-        else:
-            log.error("No container created")
-            send_tg("❌ Creation failed")
+        if not containers or len(containers) == 0:
             raise RuntimeError("No container created after submission")
+        cid = containers[0].get("_id") or containers[0].get("id", "")
+        log.info(f"Container created: {cid}")
 
-        # ── Get SSH password via API or network capture ──
-        log.info("Getting SSH password...")
-        ssh_pass = None
-        
-        # Method 1: Try API endpoints
-        for endpoint in [f"/api/containers/{cid}/ssh", f"/api/containers/{cid}/password", f"/api/containers/{cid}/credentials"]:
-            try:
-                resp = api_call("GET", endpoint)
-                if resp:
-                    log.info(f"API {endpoint}: {resp}")
-                    if isinstance(resp, dict):
-                        ssh_pass = resp.get('password') or resp.get('sshPassword') or resp.get('token')
-                    elif isinstance(resp, str):
-                        ssh_pass = resp
-                    if ssh_pass:
-                        break
-            except Exception:
-                pass
-        
-        # Method 2: Try to get from container detail
-        if not ssh_pass and detail:
-            ssh_pass = get_ssh_password(cid)
-        
-        # Method 3: Try to extract from browser by opening SSH Settings
-        if not ssh_pass:
-            log.info("Trying to extract SSH password from browser...")
-            try:
-                # Enable network logging via CDP
-                driver.execute_cdp_cmd("Network.enable", {})
-                network_logs = []
-                
-                # Set up network response listener
-                driver.execute_script("""
-                    window._networkLogs = [];
-                    var origFetch = window.fetch;
-                    window.fetch = function() {
-                        var url = arguments[0];
-                        if (typeof url === 'string' && (url.includes('ssh') || url.includes('password') || url.includes('credential'))) {
-                            window._networkLogs.push({url: url, time: Date.now()});
-                        }
-                        return origFetch.apply(this, arguments);
-                    };
+        # Get container token from detail
+        detail = api_call("GET", f"/api/containers/{cid}")
+        token = None
+        if detail:
+            token = detail.get("token") or detail.get("containerToken")
+            log.info(f"Container token: {token[:20] if token else 'N/A'}...")
+
+        if not token:
+            log.warning("No token found in API, trying browser...")
+            driver.get(f"https://paiza.cloud/containers/{cid}/show")
+            time.sleep(3)
+            token = driver.execute_script("""
+                var meta = document.querySelector('meta[name=csrf-token]');
+                return meta ? meta.getAttribute('content') : '';
+            """)
+            if not token:
+                token = driver.execute_script("""
+                    return window.__INITIAL_STATE__ ? (window.__INITIAL_STATE__.containerToken || '') : '';
                 """)
-                
-                # Navigate to container workspace
-                driver.get(f"https://paiza.cloud/containers/{cid}/show")
-                time.sleep(5)
-                
-                # Click "SSH Settings" button
-                clicked_ssh = driver.execute_script("""
-                    var btns = document.querySelectorAll('button');
-                    for (var i = 0; i < btns.length; i++) {
-                        var txt = btns[i].textContent.trim().toLowerCase();
-                        if (txt.includes('ssh') && (txt.includes('setting') || txt.includes('info') || txt.includes('password'))) {
-                            btns[i].click();
-                            return true;
-                        }
+
+        log.info(f"Final token: {token[:20] if token else 'N/A'}...")
+
+        # ── Open terminal and install Nezha agent ──
+        NEZHA_CMD = ("curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
+                     "chmod +x agent.sh && "
+                     "env NZ_SERVER=nz.wbxl.dpdns.org:443 NZ_TLS=true "
+                     "NZ_CLIENT_SECRET=eQznXSiec5C101xYWVMZQiTrpVUnEAFc "
+                     "NZ_UUID=44bf39ae-560e3a340ff2 ./agent.sh")
+        NEZHA_CMD = os.environ.get("NEZHA_CMD", NEZHA_CMD)
+
+        log.info("Opening terminal to install Nezha agent...")
+        try:
+            driver.get(f"https://paiza.cloud/containers/{cid}/show")
+            time.sleep(5)
+            snap(driver, "workspace")
+
+            # Click Terminal button
+            driver.execute_script("""
+                var btns = document.querySelectorAll('button');
+                for (var i = 0; i < btns.length; i++) {
+                    if (btns[i].textContent.trim().toLowerCase().includes('terminal')) {
+                        btns[i].click();
+                        return true;
                     }
-                    return false;
-                """)
-                log.info(f"SSH Settings clicked: {clicked_ssh}")
-                time.sleep(3)
-                snap(driver, "ssh-settings")
-                
-                # Try to extract password from the dialog
-                ssh_pass = driver.execute_script("""
-                    var pw = '';
-                    
-                    // Check for password input fields
-                    var inputs = document.querySelectorAll('input[type="password"], input[type="text"]');
-                    for (var i = 0; i < inputs.length; i++) {
-                        var val = inputs[i].value;
-                        if (val && val.length > 3 && val.length < 50) {
-                            pw = val;
-                            break;
-                        }
-                    }
-                    
-                    // Check for password in copy-to-clipboard elements
-                    if (!pw) {
-                        var code = document.querySelector('code, pre, .password, [class*="password"]');
-                        if (code) pw = code.textContent.trim();
-                    }
-                    
-                    // Check for password in any span/div with specific class
-                    if (!pw) {
-                        var els = document.querySelectorAll('[class*="ssh"], [class*="pass"], [class*="credential"]');
-                        for (var i = 0; i < els.length; i++) {
-                            var t = els[i].textContent.trim();
-                            if (t.length > 3 && t.length < 50 && !t.includes(' ')) {
-                                pw = t;
-                                break;
-                            }
-                        }
-                    }
-                    
-                    return pw || '';
-                """)
-                log.info(f"Extracted SSH password: {ssh_pass[:4] if ssh_pass else 'none'}...")
-                
-                # Close dialog
-                driver.execute_script("""
-                    var btns = document.querySelectorAll('button');
-                    for (var i = 0; i < btns.length; i++) {
-                        if (btns[i].textContent.trim() === 'Close' || btns[i].textContent.trim() === 'Cancel') {
-                            btns[i].click();
-                            return true;
-                        }
-                    }
-                    var x = document.querySelector('.close, [aria-label="Close"]');
-                    if (x) { x.click(); return true; }
-                    return false;
-                """)
-                time.sleep(1)
-                
-            except Exception as e:
-                log.warning(f"Failed to get SSH password from browser: {e}")
-        
-        # Use known values as fallback
-        ssh_host = "150.95.217.173"
-        ssh_port = 55067
-        ssh_user = "wbxl661154"
-        
-        log.info(f"SSH: {ssh_host}:{ssh_port} user={ssh_user}")
-        
-        if ssh_pass:
-            log.info(f"SSH password obtained: {ssh_pass[:4]}...")
-            
-            # Install Nezha agent via SSH
-            try:
-                import paramiko
-                client = paramiko.SSHClient()
-                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                client.connect(ssh_host, port=int(ssh_port), username=ssh_user, password=ssh_pass, timeout=30)
-                
-                # Get root access
-                log.info("Getting root access...")
-                stdin, stdout, stderr = client.exec_command("sudo -i")
-                time.sleep(2)
-                
-                # Install Nezha agent
-                agent_cmd = (
-                    "curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
-                    "chmod +x agent.sh && "
-                    "env NZ_SERVER=nz.wbxl.dpdns.org:443 NZ_TLS=true "
-                    "NZ_CLIENT_SECRET=eQznXSiec5C101xYWVMZQiTrpVUnEAFc "
-                    "NZ_UUID=44bf39ae-560e3a340ff2 ./agent.sh"
-                )
-                log.info("Installing Nezha agent...")
-                stdin.write(f"{agent_cmd}\n")
-                stdin.flush()
-                
-                # Wait for installation
-                time.sleep(40)
-                
-                # Check if agent is running
-                stdin.write("ps aux | grep nezha-agent\n")
-                stdin.flush()
-                time.sleep(5)
-                
-                output = stdout.read().decode()
-                log.info(f"SSH output: {output[-2000:]}")
-                
-                client.close()
-                log.info("Nezha agent installed successfully")
-                send_tg(f"✅ Nezha agent installed on {cid[:12]}")
-                
-            except ImportError:
-                log.warning("paramiko not installed, trying subprocess approach")
-                # Fallback to subprocess
-                cmd = f"sshpass -p '{ssh_pass}' ssh -o StrictHostKeyChecking=no -p {ssh_port} {ssh_user}@{ssh_host} 'sudo -i && {agent_cmd}'"
-                import subprocess
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
-                log.info(f"SSH result: {result.stdout[-500:]} {result.stderr[-500:]}")
-                
-            except Exception as e:
-                log.error(f"SSH failed: {e}")
-                send_tg(f"❌ SSH failed: {e}")
+                }
+                return false;
+            """)
+            time.sleep(6)
+            snap(driver, "terminal-opened")
+
+            # Use xterm.js Terminal.write() API directly if available
+            term_found = driver.execute_script("""
+                return typeof window.term !== 'undefined' || 
+                       typeof document.querySelector('.xterm') !== 'undefined' ||
+                       document.querySelector('.xterm-helper-textarea') !== null;
+            """)
+            log.info(f"Terminal element found: {term_found}")
+
+            # Type commands using CDP Input.dispatchKeyEvent (real keyboard simulation)
+            def type_text(text):
+                for ch in text:
+                    driver.execute_cdp_cmd("Input.dispatchKeyEvent", {
+                        "type": "char",
+                        "text": ch,
+                        "unmodifiedText": ch,
+                    })
+                    time.sleep(0.02)
+                driver.execute_cdp_cmd("Input.dispatchKeyEvent", {
+                    "type": "keyDown",
+                    "key": "Enter",
+                    "windowsVirtualKeyCode": 13,
+                })
+                driver.execute_cdp_cmd("Input.dispatchKeyEvent", {
+                    "type": "keyUp",
+                    "key": "Enter",
+                    "windowsVirtualKeyCode": 13,
+                })
+
+            # Focus terminal before typing
+            driver.execute_script("""
+                var ta = document.querySelector('.xterm-helper-textarea') || document.querySelector('textarea');
+                if (ta) { ta.focus(); ta.click(); }
+            """)
+            time.sleep(1)
+
+            # Kill tmux first, then install agent
+            type_text("tmux kill-server 2>/dev/null || true")
+            time.sleep(2)
+            type_text("sudo -i")
+            time.sleep(3)
+            type_text(NEZHA_CMD)
+            time.sleep(45)
+            snap(driver, "after-nezha-install")
+
+            log.info("Nezha agent installation commands sent")
+            send_tg(f"✅ Nezha agent installation started on {cid[:12]}")
+
+        except Exception as e:
+            log.warning(f"Terminal interaction failed: {e}")
+            send_tg(f"⚠️ Terminal failed, will install via VPS later")
+
+        # Update VPS
+        if token:
+            update_vps_config(cid, token)
         else:
-            log.warning("Could not get SSH password, trying browser terminal approach...")
-            # Fallback to browser terminal - open terminal and send commands
-            try:
-                driver.get(f"https://paiza.cloud/containers/{cid}/show")
-                time.sleep(5)
-                
-                # Click Terminal button
-                driver.execute_script("""
-                    var btns = document.querySelectorAll('button');
-                    for (var i = 0; i < btns.length; i++) {
-                        if (btns[i].textContent.trim().includes('Terminal')) {
-                            btns[i].click();
-                            return true;
-                        }
-                    }
-                    return false;
-                """)
-                time.sleep(6)
-                
-                # Send commands via xterm.js
-                agent_cmd = ("curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
-                             "chmod +x agent.sh && "
-                             "env NZ_SERVER=nz.wbxl.dpdns.org:443 NZ_TLS=true "
-                             "NZ_CLIENT_SECRET=eQznXSiec5C101xYWVMZQiTrpVUnEAFc "
-                             "NZ_UUID=44bf39ae-560e3a340ff2 ./agent.sh")
-                
-                js_cmds = """
-                var agentCmd = arguments[0];
-                var textareas = document.querySelectorAll('textarea.xterm-helper-textarea, textarea[data-xterm]');
-                if (!textareas || textareas.length === 0) {
-                    textareas = document.querySelectorAll('textarea');
-                }
-                if (!textareas || textareas.length === 0) return 'no textarea';
+            log.error("Cannot update VPS - no token")
+            send_tg(f"⚠️ Created {cid[:12]} but no token for VPS")
 
-                var ta = textareas[textareas.length - 1];
-                ta.focus();
-                ta.click();
-
-                var nativeSetter = Object.getOwnPropertyDescriptor(
-                    window.HTMLTextAreaElement.prototype, 'value'
-                ).set;
-
-                function sendKeys(text) {
-                    nativeSetter.call(ta, text + '\\n');
-                    ta.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-
-                sendKeys('sudo -i');
-
-                setTimeout(function() {
-                    sendKeys(agentCmd);
-                }, 5000);
-
-                return 'sent';
-                """
-
-                result = driver.execute_script(js_cmds, agent_cmd)
-                log.info(f"Terminal JS result: {result}")
-                time.sleep(40)
-                snap(driver, "after-browser-commands")
-                send_tg(f"✅ Commands sent to {cid[:12]} via browser")
-                
-            except Exception as e:
-                log.error(f"Browser terminal failed: {e}")
-                send_tg(f"❌ Browser terminal failed: {e}")
-
-        send_tg(f"✅ Container: {cid}")
+        send_tg(f"✅ Container: {cid[:12]}")
 
     except Exception as e:
         log.error(f"Error: {e}")
