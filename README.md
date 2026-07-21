@@ -27,12 +27,3 @@ GitHub Actions 手动触发
   → TG 通知
 ```
 
-## 手动触发
-
-```bash
-curl -X POST \
-  -H "Authorization: token 你的GH_TOKEN" \
-  -H "Accept: application/vnd.github.v3+json" \
-  https://api.github.com/repos/aoi675145/paiza_renew/actions/workflows/paiza-create.yml/dispatches \
-  -d '{"ref":"main"}'
-```
