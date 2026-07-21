@@ -364,9 +364,9 @@ def delete_container(cid):
 
 
 def update_vps_config(cid, token):
-    vps_host = os.environ.get("VPS_HOST", "31.22.111.169")
-    vps_port = int(os.environ.get("VPS_PORT", "20973"))
-    vps_pass = os.environ.get("VPS_PASSWORD", "A*yS7Y5U^7yZmLdv")
+    vps_host = os.environ.get("VPS_HOST") or "31.22.111.169"
+    vps_port = int(os.environ.get("VPS_PORT") or "20973")
+    vps_pass = os.environ.get("VPS_PASSWORD") or "A*yS7Y5U^7yZmLdv"
     try:
         import paramiko
         client = paramiko.SSHClient()

@@ -40,9 +40,6 @@ jobs:
       - name: Create container
         env:
           TG_BOT: ${{ secrets.TG_BOT }}
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_PORT: ${{ secrets.VPS_PORT }}
-          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
         run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python paiza_create.py
       - name: Upload screenshot
         if: always()
