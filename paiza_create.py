@@ -677,15 +677,15 @@ def run():
                     if (!div) return 'no-terminal-div';
                     var rows = div.querySelectorAll('.xterm-rows span, .xterm-rows div');
                     if (rows.length > 0) {
-                        return Array.from(rows).map(function(r) { return r.textContent; }).join('').slice(-1000);
+                        return Array.from(rows).map(function(r) { return r.textContent; }).join('').slice(-5000);
                     }
-                    return (div.innerText || div.textContent || '').slice(-1000);
+                    return (div.innerText || div.textContent || '').slice(-5000);
                 """)
                 if "Running done!" in output_check:
                     terminal_ok = True
                     break
                 if attempt % 6 == 0:
-                    tail = output_check[-80:].replace('\n', ' ').strip()
+                    tail = output_check[-120:].replace('\n', ' ').strip()
                     print(f"  \u23f3 \u7b49\u5f85\u5b89\u88c5\u5b8c\u6210... ({attempt*5+5}s) {tail}")
             snap(driver, "after-nezha-install")
 
