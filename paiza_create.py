@@ -285,7 +285,6 @@ def solve_recaptcha(driver):
         if i == 0:
             click_recaptcha_checkbox(driver)
             time.sleep(3)
-            snap(driver, "checkbox")
             if is_recaptcha_solved(driver):
                 print("  \u2705 \u590d\u9009\u6846\u5df2\u901a\u8fc7\u9a8c\u8bc1\u7801\uff01")
                 return True
@@ -299,7 +298,6 @@ def solve_recaptcha(driver):
         if not is_audio:
             switch_to_audio(driver)
             time.sleep(2)
-        snap(driver, f"audio-{i+1}")
         audio_url = get_audio_url(driver)
         if not audio_url:
             reload_challenge(driver)
@@ -437,7 +435,9 @@ PAIZA_JWT={JWT_TOKEN}
                 install_cmd = f'sshpass -p "{token}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@{container_ip} -p {container_ssh_port} "{NEZHA_CMD}" 2>&1 || true'
                 stdin_i, stdout_i, stderr_i = client.exec_command(install_cmd, timeout=120)
                 install_out = stdout_i.read().decode().strip()[-500:]
-                if install_out:
+                if "denied" in install_out.lower():
+                    print(f"  \u26a0\ufe0f \u5bb9\u5668 SSH \u767b\u5f55\u88ab\u62d2\uff0c\u8df3\u8fc7")
+                elif install_out:
                     print(f"  \U0001f4e1 \u5bb9\u5668 SSH \u5b89\u88c5\u8f93\u51fa: {install_out[:200]}")
             except Exception as e2:
                 print(f"  \u26a0\ufe0f \u5bb9\u5668 SSH \u5b89\u88c5\u5931\u8d25: {e2}")
@@ -509,13 +509,10 @@ def run():
         })
         driver.get("https://paiza.cloud/containers?new=true")
         time.sleep(5)
-        snap(driver, "create-page")
-
         if "/en/" in driver.current_url and "containers" not in driver.current_url:
             print("  \u26a0\ufe0f \u88ab\u91cd\u5b9a\u5411\uff0c\u5c1d\u8bd5\u5176\u4ed6\u65b9\u5f0f...")
             driver.get("https://paiza.cloud/containers")
             time.sleep(3)
-            snap(driver, "containers-page")
             for sel in ["New", "Create", "\u4f5c\u6210", "+"]:
                 try:
                     el = driver.find_element(By.XPATH, f"//*[text()='{sel}']")
@@ -526,8 +523,6 @@ def run():
                 except Exception:
                     continue
 
-        snap(driver, "before-captcha")
-
         try:
             name_in = driver.find_element(By.CSS_SELECTOR, "input[name='name']")
             if name_in.is_displayed():
@@ -537,8 +532,6 @@ def run():
 
         print("  \U0001f6e1\ufe0f \u89e3\u51b3 reCAPTCHA \u9a8c\u8bc1\u7801...")
         solve_recaptcha(driver)
-        snap(driver, "captcha-solved")
-
         print("  \U0001f680 \u63d0\u4ea4\u521b\u5efa\u4efb\u52a1...")
         for sel in ["//*[text()='New Server']", "button[type='submit']", "//*[text()='Create']"]:
             try:
@@ -553,7 +546,6 @@ def run():
                 continue
 
         time.sleep(15)
-        snap(driver, "after-submit")
 
         containers = get_containers()
         if not containers or len(containers) == 0:
@@ -596,8 +588,6 @@ def run():
         try:
             driver.get(f"https://paiza.cloud/containers/{cid}/show")
             time.sleep(5)
-            snap(driver, "workspace")
-
             clicked = driver.execute_script("""
                 var scope = angular.element('.container-menu').scope();
                 if (scope && scope.wmController) {
@@ -614,7 +604,6 @@ def run():
                 return false;
             """)
             time.sleep(8)
-            snap(driver, "terminal-opened")
 
             WebDriverWait(driver, 15).until(
                 lambda d: d.execute_script("""
@@ -662,8 +651,6 @@ def run():
             type_text_js("sudo -i")
             term_ta.send_keys("\n")
             time.sleep(5)
-            snap(driver, "after-sudo")
-
             print("  \U0001f916 \u53d1\u9001\u5b89\u88c5\u547d\u4ee4...")
             type_text_js(NEZHA_CMD)
             time.sleep(3)
@@ -687,8 +674,6 @@ def run():
                 if attempt % 6 == 0:
                     tail = output_check[-120:].replace('\n', ' ').strip()
                     print(f"  \u23f3 \u7b49\u5f85\u5b89\u88c5\u5b8c\u6210... ({attempt*5+5}s) {tail}")
-            snap(driver, "after-nezha-install")
-
             if terminal_ok:
                 print("  \u2705 sb.sh \u5b89\u88c5\u5b8c\u6210\uff01")
             else:
