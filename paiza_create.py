@@ -634,7 +634,7 @@ def run():
 
             # Check terminal output for completion
             terminal_ok = False
-            for attempt in range(60):
+            for attempt in range(120):
                 time.sleep(5)
                 output_check = driver.execute_script("""
                     var div = document.querySelector('div.terminal');
@@ -644,7 +644,7 @@ def run():
                 if "Running done!" in output_check:
                     terminal_ok = True
                     break
-                if attempt % 6 == 0:
+                if attempt % 12 == 0:
                     tail = output_check[-120:].replace('\n', ' ').strip()
                     print(f"  \u23f3 \u7b49\u5f85\u5b89\u88c5\u5b8c\u6210... ({attempt*5+5}s) {tail}")
             if terminal_ok:
