@@ -9,8 +9,8 @@
 
 | 变量名 | 必填 | 说明 |
 | :--- | :---: | :--- |
-| `NZ_SERVER` | ✅ | 哪吒探针服务器地址，格式 `域名:端口` |
-| `NZ_CLIENT_SECRET` | ✅ | 哪吒探针 Client Secret |
+| `NEZHA_SERVER` | ✅ | 哪吒探针服务器地址，格式 `域名:端口` |
+| `NEZHA_KEY` | ✅ | 哪吒探针 Client Secret |
 | `NZ_UUID` | ✅ | 哪吒探针客户端 UUID |
 | `TG_BOT` | ❌ | Telegram 通知，格式 `chat_id,bot_token`；未填写时不发通知 |
 
@@ -26,15 +26,6 @@ GitHub Actions 手动触发
   → VPS 保活配置更新
   → TG 通知
 ```
-
-## 文件说明
-
-| 文件 | 用途 |
-| :--- | :--- |
-| `paiza_create.py` | 主脚本：Selenium 自动化 + reCAPTCHA 音频破解 + 终端交互 + VPS 保活更新 |
-| `paiza_renew.py` | VPS 保活脚本：每分钟调用 keepalive API 防止容器超时 |
-| `.github/workflows/paiza-create.yml` | GitHub Actions 工作流配置 |
-
 
 ## 手动触发
 

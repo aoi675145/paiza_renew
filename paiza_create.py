@@ -15,8 +15,8 @@ log = logging.getLogger(__name__)
 
 JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2YTViYTFmMGIxNTE1MzY2ODM4ODczMDgiLCJyb2xlIjoidXNlciIsInNpZ25BdCI6MTc4NDQ4NTA3NjQxNCwiaWF0IjoxNzg0NDg1MDc2fQ.zp4rx4wkDvpeFe6O8YLSCQeuZVGYmz2uAO3T5XWhtJM"
 
-NZ_SERVER = os.environ.get("NZ_SERVER", "")
-NZ_CLIENT_SECRET = os.environ.get("NZ_CLIENT_SECRET", "")
+NEZHA_SERVER = os.environ.get("NEZHA_SERVER", "")
+NEZHA_KEY = os.environ.get("NEZHA_KEY", "")
 NZ_UUID = os.environ.get("NZ_UUID", "")
 
 TG_BOT = os.environ.get("TG_BOT", "")
@@ -438,8 +438,8 @@ PAIZA_TOKEN={JWT_TOKEN}
                 time.sleep(2)
                 NEZHA_CMD = (f"curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
                              f"chmod +x agent.sh && "
-                             f"env NZ_SERVER={NZ_SERVER} NZ_TLS=true "
-                             f"NZ_CLIENT_SECRET={NZ_CLIENT_SECRET} "
+                             f"env NZ_SERVER={NEZHA_SERVER} NZ_TLS=true "
+                             f"NZ_CLIENT_SECRET={NEZHA_KEY} "
                              f"NZ_UUID={NZ_UUID} ./agent.sh")
                 install_cmd = f'sshpass -p "{token}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@{container_ip} -p {container_ssh_port} "{NEZHA_CMD}" 2>&1 || true'
                 stdin_i, stdout_i, stderr_i = client.exec_command(install_cmd, timeout=120)
@@ -612,8 +612,8 @@ def run():
         # ── Open terminal and install Nezha agent ──
         NEZHA_CMD = (f"curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && "
                      f"chmod +x agent.sh && "
-                     f"env NZ_SERVER={NZ_SERVER} NZ_TLS=true "
-                     f"NZ_CLIENT_SECRET={NZ_CLIENT_SECRET} "
+                     f"env NZ_SERVER={NEZHA_SERVER} NZ_TLS=true "
+                     f"NZ_CLIENT_SECRET={NEZHA_KEY} "
                      f"NZ_UUID={NZ_UUID} ./agent.sh")
         NEZHA_CMD = os.environ.get("NEZHA_CMD", NEZHA_CMD)
 
@@ -710,8 +710,8 @@ def run():
             # Manually start agent (install script might fail on systemd in Docker)
             log.info("手动启动哪吒探针...")
             START_CMD = (f"nohup /opt/nezha/agent/nezha-agent "
-                         f"-s {NZ_SERVER} "
-                         f"-p {NZ_CLIENT_SECRET} "
+                         f"-s {NEZHA_SERVER} "
+                         f"-p {NEZHA_KEY} "
                          f"-d > /tmp/agent.log 2>&1 &")
             type_text_js(START_CMD)
             time.sleep(5)
