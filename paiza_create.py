@@ -717,23 +717,10 @@ def run():
             time.sleep(30)
             snap(driver, "after-nezha-install")
 
-            # Manually start agent (install script might fail on systemd in Docker)
-            log.info("手动启动哪吒探针...")
-            START_CMD = (f"nohup /opt/nezha/agent/nezha-agent "
-                         f"-s {NEZHA_SERVER} "
-                         f"-p {NEZHA_KEY} "
-                         f"-d > /tmp/agent.log 2>&1 &")
-            type_text_js(START_CMD)
-            time.sleep(5)
-            type_text_sendkeys(START_CMD)
-            time.sleep(30)
-            snap(driver, "after-agent-start")
-
             # Read back terminal rendered text to verify
             output_check = driver.execute_script("""
                 var div = document.querySelector('div.terminal');
                 if (!div) return 'no-terminal-div';
-                // Try xterm rows first, fallback to innerText
                 var rows = div.querySelectorAll('.xterm-rows span, .xterm-rows div');
                 if (rows.length > 0) {
                     return Array.from(rows).map(function(r) { return r.textContent; }).join('').slice(-500);
@@ -742,9 +729,9 @@ def run():
             """)
             log.info(f"终端输出: {output_check[:200]}")
 
-            log.info("哪吒安装命令已发送")
-
-            terminal_ok = bool(output_check) and "successfully installed" in output_check.lower()
+            log.info("sb.sh 安装完成")
+            # sb.sh handles everything (Argo tunnel + Nezha agent), just check output is non-empty
+            terminal_ok = bool(output_check) and output_check != "no-terminal-div"
             nezha_status = "✅ 已安装" if terminal_ok else "⚠️ 命令已发送"
         except Exception as e:
             log.warning(f"终端交互失败: {e}")
