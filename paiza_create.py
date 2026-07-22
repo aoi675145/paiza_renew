@@ -644,11 +644,7 @@ def run():
                 output_check = driver.execute_script("""
                     var div = document.querySelector('div.terminal');
                     if (!div) return '';
-                    var rows = div.querySelectorAll('.xterm-rows span, .xterm-rows div');
-                    if (rows.length > 0) {
-                        return Array.from(rows).map(function(r) { return r.textContent; }).join('').slice(-5000);
-                    }
-                    return (div.innerText || div.textContent || '').slice(-5000);
+                    return div.innerText || div.textContent || '';
                 """)
                 if "sb.sh" in output_check or "agent.sh" in output_check:
                     terminal_ok = True
