@@ -650,7 +650,7 @@ def run():
                     }
                     return (div.innerText || div.textContent || '').slice(-5000);
                 """)
-                if "Running done!" in output_check or "agent.sh" in output_check:
+                if "sb.sh" in output_check or "agent.sh" in output_check:
                     terminal_ok = True
                     break
                 if attempt % 6 == 0:
