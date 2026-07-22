@@ -672,16 +672,15 @@ def run():
         # Create initial snapshot for 4h renew
         print("  \U0001f4f8 \u521b\u5efa\u521d\u59cb\u5feb\u7167...")
         try:
-            api_call("POST", f"/api/containers/{cid}/suspend", json={})
+            api_call("POST", f"/api/containers/{cid}/suspend", data={})
             time.sleep(15)
             snap_resp = api_call("GET", f"/api/containers/{cid}")
-            if snap_resp and snap_resp.status_code == 200:
-                snap_data = snap_resp.json()
-                snaps = snap_data.get("snapshots", [])
+            if snap_resp and isinstance(snap_resp, dict):
+                snaps = snap_resp.get("snapshots", [])
                 if snaps:
                     snaps.sort(key=lambda s: s.get("createdAt", ""), reverse=True)
                     sid = snaps[0]["snapshotId"]
-                    api_call("POST", f"/api/containers/{cid}/snapshots/{sid}/restore", json={}, timeout=120)
+                    api_call("POST", f"/api/containers/{cid}/snapshots/{sid}/restore", data={})
                     time.sleep(10)
                     print("  \u2705 \u521d\u59cb\u5feb\u7167\u5df2\u521b\u5e76\u6062\u590d")
                 else:
