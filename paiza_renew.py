@@ -52,17 +52,40 @@ def restore_snapshot(sid):
     if r.status_code == 200: logger.info('Restore OK'); return True
     logger.error(f'Restore failed: {r.status_code} {r.text[:200]}'); return False
 
+def delete_and_trigger():
+    """Delete current container and trigger workflow to create a new one."""
+    logger.warning('Deleting container and triggering workflow...')
+    try:
+        api_call('DELETE', f'/api/containers/{CONTAINER_ID}')
+    except:
+        pass
+    return trigger_github_workflow()
+
 def do_renew():
     logger.warning('Starting renew cycle (pre-emptive reset at ~3h45m)...')
     container = get_container()
+    st = container.get('state', '')
     snapshot = get_last_snapshot(container)
+
+    # If already suspended by system, restore won't work (name conflict).
+    # Delete and trigger workflow instead.
+    if st == 'suspended':
+        logger.info('Container already suspended, triggering rebuild...')
+        return delete_and_trigger()
+
     if not snapshot:
         logger.info('No snapshots, suspending to create one...')
-        suspend_container(); time.sleep(SUSPEND_WAIT)
+        if not suspend_container(): return False
+        time.sleep(SUSPEND_WAIT)
         container = get_container(); snapshot = get_last_snapshot(container)
-        if not snapshot: logger.error('Still no snapshot after suspend'); return False
-    if not suspend_container(): return False
-    time.sleep(SUSPEND_WAIT)
+        if not snapshot:
+            logger.error('Still no snapshot after suspend')
+            return False
+        # Already suspended from creating snapshot, go straight to restore
+    else:
+        if not suspend_container(): return False
+        time.sleep(SUSPEND_WAIT)
+
     ok = restore_snapshot(snapshot['snapshotId'])
     time.sleep(POST_RESTORE_WAIT)
     return ok
@@ -86,7 +109,7 @@ def is_expired(container):
 def main():
     if not CONTAINER_ID or not CONTAINER_TOKEN: print('Set PAIZA_CONTAINER_ID and PAIZA_CONTAINER_TOKEN'); sys.exit(1)
     logger.info('=== PaizaCloud Auto-Renew Started ===')
-    last_short_ka = last_long_ka = last_check = suspended_since = 0
+    last_short_ka = last_long_ka = last_check = suspended_since = last_renew_attempt = 0
     while True:
         try:
             now = time.time()
@@ -104,17 +127,19 @@ def main():
                 if trigger_github_workflow(): break
                 else: logger.error('Trigger failed, retry in 5min'); time.sleep(300); continue
 
-            # Pre-emptive renew at ~3h45m to reset 4h timer
-            if uptime >= RESTORE_THRESHOLD and st not in ('creatingSnapshot', 'restoringSnapshot'):
-                do_renew()
+            # Pre-emptive renew at ~3h45m to reset 4h timer (max once per 300s)
+            if uptime >= RESTORE_THRESHOLD and st not in ('creatingSnapshot', 'restoringSnapshot') and now - last_renew_attempt >= 300:
+                last_renew_attempt = now
+                if do_renew(): logger.info('Renew cycle completed successfully')
+                continue
 
-            # Fallback: if suspended, try restore (shouldn't happen if proactive works)
+            # Fallback: if suspended, delete and trigger workflow
             if st == 'suspended':
-                if suspended_since == 0: suspended_since = now; logger.info('Suspended, attempting restore...')
+                if suspended_since == 0: suspended_since = now; logger.warning('Container suspended, will trigger rebuild...')
                 if now - suspended_since >= 60:
-                    snap = get_last_snapshot(c)
-                    if snap and restore_snapshot(snap['snapshotId']): suspended_since = 0; time.sleep(POST_RESTORE_WAIT)
-                    else: suspended_since = now
+                    logger.warning('Container suspended >60s, triggering rebuild')
+                    if delete_and_trigger(): break
+                    suspended_since = now
             else: suspended_since = 0
 
             time.sleep(10)
