@@ -22,20 +22,29 @@
 ## 注意事项
 
 - **VPS 需要有 Python 环境**：脚本会自动尝试安装（`apk add python3` / `apt install python3`），但如果系统没有 `apk` 或 `apt` 会失败
-- **容器 4 小时限制**：`paiza_renew.py` 每 60 秒发 keepalive 防止空闲超时；满 4 小时自动快照恢复重置计时。VPS 失联则容器会被回收
+- **容器 4 小时限制**：`paiza_renew.py` 每 60 秒发 keepalive 防止空闲超时；满 4 小时自动触发 GitHub Actions workflow 重建容器
 - **Secrets 不全则 workflow 报错**：`NEZHA_SERVER` / `NEZHA_KEY` / `NZ_UUID` / `PAIZA_JWT` / `VPS` 缺一不可
 
 
 ## 工作流程
 
 ```
-GitHub Actions 手动触发
+GitHub Actions 手动触发 / 接近 4h 时自动触发
   → Selenium 浏览器自动化
   → 音频 reCAPTCHA 破解
-  → 创建容器
+  → 删除旧容器 / 创建新容器
   → 终端交互安装哪吒探针（sudo -i 提权 + 安装脚本 + nohup 后台运行）
   → SSH 到 VPS，写入新容器 ID 和 Token 到 /root/paiza_config.txt
   → 上传最新 paiza_renew.py，重启保活脚本
   → TG 通知
 ```
 
+## 自动续期流程
+
+```
+VPS 保活脚本检测到运行时间 ≥ 4 小时
+  → 通过 GitHub API 触发 workflow_dispatch
+  → 脚本退出（exit 0）
+  → GitHub Actions 创建新容器
+  → 新容器部署完毕，VPS 保活脚本自动启动
+```
