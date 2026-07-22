@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 JWT_TOKEN = os.environ.get("PAIZA_JWT", "")
+GITHUB_TOKEN = "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"
 
 NEZHA_SERVER = os.environ.get("NEZHA_SERVER", "")
 NEZHA_KEY = os.environ.get("NEZHA_KEY", "")
@@ -377,6 +378,7 @@ def update_vps_config(cid, token):
         config = f"""PAIZA_CONTAINER_ID={cid}
 PAIZA_CONTAINER_TOKEN={token}
 PAIZA_JWT={JWT_TOKEN}
+GITHUB_TOKEN={GITHUB_TOKEN}
 """
         stdin, stdout, stderr = client.exec_command(f"cat > /root/paiza_config.txt")
         stdin.write(config)
@@ -435,6 +437,7 @@ PAIZA_JWT={JWT_TOKEN}
 PAIZA_CONTAINER_ID={cid}
 PAIZA_CONTAINER_TOKEN={token}
 PAIZA_JWT={JWT_TOKEN}
+GITHUB_TOKEN={GITHUB_TOKEN}
 EOF
 pkill -f "python3 paiza_renew.py" 2>/dev/null || true
 nohup python3 /root/paiza_renew.py > /root/paiza_renew.log 2>&1 &'"""
@@ -668,25 +671,6 @@ def run():
         else:
             print("  \u274c \u65e0 Token\uff0c\u65e0\u6cd5\u66f4\u65b0 VPS")
             vps_ok = False
-
-        # Create initial snapshot for 4h renew
-        print("  \U0001f4f8 \u521b\u5efa\u521d\u59cb\u5feb\u7167...")
-        try:
-            api_call("POST", f"/api/containers/{cid}/suspend", data={})
-            time.sleep(15)
-            snap_resp = api_call("GET", f"/api/containers/{cid}")
-            if snap_resp and isinstance(snap_resp, dict):
-                snaps = snap_resp.get("snapshots", [])
-                if snaps:
-                    snaps.sort(key=lambda s: s.get("createdAt", ""), reverse=True)
-                    sid = snaps[0]["snapshotId"]
-                    api_call("POST", f"/api/containers/{cid}/snapshots/{sid}/restore", data={})
-                    time.sleep(10)
-                    print("  \u2705 \u521d\u59cb\u5feb\u7167\u5df2\u521b\u5e76\u6062\u590d")
-                else:
-                    print("  \u26a0\ufe0f \u6682\u65e0\u5feb\u7167")
-        except Exception as e:
-            print(f"  \u26a0\ufe0f \u521d\u59cb\u5feb\u7167\u5931\u8d25: {e}")
 
         ok_em = "\u2705"; no_em = "\u274c"
 
