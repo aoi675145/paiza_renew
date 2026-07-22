@@ -669,6 +669,28 @@ def run():
             print("  \u274c \u65e0 Token\uff0c\u65e0\u6cd5\u66f4\u65b0 VPS")
             vps_ok = False
 
+        # Create initial snapshot for 4h renew
+        print("  \U0001f4f8 \u521b\u5efa\u521d\u59cb\u5feb\u7167...")
+        try:
+            api_call("POST", f"/api/containers/{cid}/suspend", json={})
+            time.sleep(15)
+            snap_resp = api_call("GET", f"/api/containers/{cid}")
+            if snap_resp and snap_resp.status_code == 200:
+                snap_data = snap_resp.json()
+                snaps = snap_data.get("snapshots", [])
+                if snaps:
+                    snaps.sort(key=lambda s: s.get("createdAt", ""), reverse=True)
+                    sid = snaps[0]["snapshotId"]
+                    api_call("POST", f"/api/containers/{cid}/snapshots/{sid}/restore", json={}, timeout=120)
+                    time.sleep(10)
+                    print("  \u2705 \u521d\u59cb\u5feb\u7167\u5df2\u521b\u5e76\u6062\u590d")
+                else:
+                    print("  \u26a0\ufe0f \u6682\u65e0\u5feb\u7167")
+        except Exception as e:
+            print(f"  \u26a0\ufe0f \u521d\u59cb\u5feb\u7167\u5931\u8d25: {e}")
+
+        ok_em = "\u2705"; no_em = "\u274c"
+
         ok_em = "\u2705"; no_em = "\u274c"
         fail = "\u521b\u5efa\u5931\u8d25"
         running = "\u8fd0\u884c\u4e2d"; deploy_fail = "\u90e8\u7f72\u5931\u8d25"
