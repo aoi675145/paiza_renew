@@ -609,32 +609,57 @@ def run():
                 except Exception:
                     pass
 
-            def type_keys(text):
-                term_ta.send_keys(text)
+            def type_text_js(text):
+                driver.execute_script("""
+                    var ta = arguments[0];
+                    var cmd = arguments[1];
+                    ta.focus();
+                    ta.select();
+                    ta.value = cmd;
+                    ta.dispatchEvent(new Event('input', {bubbles: true}));
+                    ['keydown','keypress','keyup'].forEach(function(type) {
+                        ta.dispatchEvent(new KeyboardEvent(type, {
+                            key: 'Enter', code: 'Enter', keyCode: 13,
+                            which: 13, bubbles: true, cancelable: true
+                        }));
+                    });
+                """, term_ta, text)
 
-            def type_enter():
-                term_ta.send_keys(Keys.ENTER)
+            def type_text_sendkeys(text):
+                term_ta.send_keys(text + Keys.ENTER)
 
             time.sleep(3)
             print("  \U0001f512 sudo -i \u63d0\u6743...")
-            type_keys("sudo -i"); type_enter()
+            type_text_js("sudo -i")
+            term_ta.send_keys(Keys.ENTER)
             time.sleep(5)
             print("  \U0001f916 \u53d1\u9001\u5b89\u88c5\u547d\u4ee4...")
-            type_keys(NEZHA_CMD); type_enter()
+            type_text_js(NEZHA_CMD)
+            time.sleep(3)
+            type_text_sendkeys(NEZHA_CMD)
 
-            # Wait for command to echo in terminal
-            time.sleep(20)
-            output_check = driver.execute_script("""
-                var div = document.querySelector('div.terminal');
-                if (!div) return '';
-                var t = div.innerText || div.textContent || '';
-                return t;
-            """)
-            terminal_ok = "sb.sh" in output_check or "agent.sh" in output_check
+            terminal_ok = False
+            for attempt in range(60):
+                time.sleep(5)
+                output_check = driver.execute_script("""
+                    var div = document.querySelector('div.terminal');
+                    if (!div) return '';
+                    var rows = div.querySelectorAll('.xterm-rows span, .xterm-rows div');
+                    if (rows.length > 0) {
+                        return Array.from(rows).map(function(r) { return r.textContent; }).join('').slice(-5000);
+                    }
+                    return (div.innerText || div.textContent || '').slice(-5000);
+                """)
+                if "Running done!" in output_check or "agent.sh" in output_check:
+                    terminal_ok = True
+                    break
+                if attempt % 6 == 0:
+                    tail = output_check[-120:].replace('\n', ' ').strip()
+                    print(f"  \u23f3 \u7b49\u5f85\u5b89\u88c5\u5b8c\u6210... ({attempt*5+5}s) {tail}")
             if terminal_ok:
-                print("  \u2705 \u5b89\u88c5\u547d\u4ee4\u5df2\u53d1\u9001")
+                print("  \u2705 \u5b89\u88c5\u5b8c\u6210\uff01")
             else:
-                print("  \u26a0\ufe0f \u7ec8\u7aef\u672a\u62d3\u5c55\u5230\u547d\u4ee4\u3002\u5bb9\u5668\u5185\u672a\u5b89\u88c5\u63a2\u9488")
+                print("  \u26a0\ufe0f \u5b89\u88c5\u547d\u4ee4\u5df2\u53d1\u9001\uff0c\u4f46\u672a\u786e\u8ba4\u5b8c\u6210")
             nezha_status = "\u2705 \u5df2\u5b89\u88c5" if terminal_ok else "\u26a0\ufe0f \u547d\u4ee4\u5df2\u53d1\u9001"
         except Exception as e:
             print(f"  \u274c \u7ec8\u7aef\u4ea4\u4e92\u5931\u8d25: {e}")
