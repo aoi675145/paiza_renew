@@ -6,7 +6,6 @@ logger = logging.getLogger('paiza_renew')
 BASE_URL = 'https://paiza.cloud'
 CONTAINER_ID = os.getenv('PAIZA_CONTAINER_ID', '')
 CONTAINER_TOKEN = os.getenv('PAIZA_CONTAINER_TOKEN', '')
-JWT_TOKEN = os.getenv('PAIZA_JWT', '')
 RESTORE_THRESHOLD = int(os.getenv('PAIZA_RESTORE_THRESHOLD', '13500'))
 SUSPEND_WAIT = int(os.getenv('PAIZA_SUSPEND_WAIT', '15'))
 POST_RESTORE_WAIT = int(os.getenv('PAIZA_POST_RESTORE_WAIT', '60'))
@@ -18,20 +17,20 @@ def api_call(method, path, **kwargs):
     return requests.request(method, f'{BASE_URL}{path}', params=params, timeout=kwargs.pop('timeout', 30), **kwargs)
 
 def keepalive_short():
-    try: return api_call('GET', f'/api/containers/{CONTAINER_ID}/keepalive').status_code == 200
-    except: return False
+    try: resp = api_call('GET', f'/api/containers/{CONTAINER_ID}/keepalive'); return resp.status_code == 200
+    except Exception as e: logger.warning(f'keepalive error: {e}'); return False
 
 def keepalive_long():
-    try: return api_call('GET', f'/api/containers/{CONTAINER_ID}/activeKeepalive').status_code == 200
-    except: return False
+    try: resp = api_call('GET', f'/api/containers/{CONTAINER_ID}/activeKeepalive'); return resp.status_code == 200
+    except Exception as e: logger.warning(f'activeKeepalive error: {e}'); return False
 
 def get_container():
     resp = api_call('GET', f'/api/containers/{CONTAINER_ID}'); resp.raise_for_status(); return resp.json()
 
 def get_last_snapshot(container):
-    snaps = container.get('snapshots', [])
-    if not snaps: return None
-    snaps.sort(key=lambda s: s.get('createdAt', ''), reverse=True); return snaps[0]
+    snapshots = container.get('snapshots', [])
+    if not snapshots: return None
+    snapshots.sort(key=lambda s: s.get('createdAt', ''), reverse=True); return snapshots[0]
 
 def get_uptime(container):
     created_str = container.get('containerCreatedAt', '')
@@ -43,49 +42,27 @@ def suspend_container():
     logger.info('Suspending container...')
     resp = api_call('POST', f'/api/containers/{CONTAINER_ID}/suspend', json={})
     if resp.status_code in (200, 204): logger.info('Container suspended'); return True
-    if resp.status_code == 500 and 'not running' in resp.text: logger.info('Already suspended'); return True
-    logger.error(f'Suspend failed: {resp.status_code}'); return False
+    if resp.status_code == 500 and 'not running' in resp.text: logger.info('Container already suspended'); return True
+    logger.error(f'Suspend failed: {resp.status_code} {resp.text}'); return False
 
-def restore_snapshot(sid):
-    logger.info(f'Restoring snapshot {sid}')
-    r = api_call('POST', f'/api/containers/{CONTAINER_ID}/snapshots/{sid}/restore', json={}, timeout=120)
-    if r.status_code == 200: logger.info('Restore OK'); return True
-    logger.error(f'Restore failed: {r.status_code} {r.text[:200]}'); return False
-
-def delete_and_trigger():
-    """Delete current container and trigger workflow to create a new one."""
-    logger.warning('Deleting container and triggering workflow...')
-    try:
-        api_call('DELETE', f'/api/containers/{CONTAINER_ID}')
-    except:
-        pass
-    return trigger_github_workflow()
+def restore_snapshot(snapshot_id):
+    logger.info(f'Restoring snapshot: {snapshot_id}')
+    resp = api_call('POST', f'/api/containers/{CONTAINER_ID}/snapshots/{snapshot_id}/restore', json={}, timeout=120)
+    if resp.status_code == 200:
+        data = resp.json(); logger.info(f'Restore OK - new containerId: {data.get("containerIdShort", "?")}'); return True
+    logger.error(f'Restore failed: {resp.status_code} {resp.text}'); return False
 
 def do_renew():
-    logger.warning('Starting renew cycle (pre-emptive reset at ~3h45m)...')
+    logger.warning('Starting renew cycle...')
     container = get_container()
-    st = container.get('state', '')
     snapshot = get_last_snapshot(container)
-
-    # If already suspended by system, restore won't work (name conflict).
-    # Delete and trigger workflow instead.
-    if st == 'suspended':
-        logger.info('Container already suspended, triggering rebuild...')
-        return delete_and_trigger()
-
     if not snapshot:
         logger.info('No snapshots, suspending to create one...')
-        if not suspend_container(): return False
-        time.sleep(SUSPEND_WAIT)
+        suspend_container(); time.sleep(SUSPEND_WAIT)
         container = get_container(); snapshot = get_last_snapshot(container)
-        if not snapshot:
-            logger.error('Still no snapshot after suspend')
-            return False
-        # Already suspended from creating snapshot, go straight to restore
-    else:
-        if not suspend_container(): return False
-        time.sleep(SUSPEND_WAIT)
-
+        if not snapshot: logger.error('Still no snapshot after suspend'); return False
+    if not suspend_container(): logger.error('Suspend failed, aborting renew'); return False
+    time.sleep(SUSPEND_WAIT)
     ok = restore_snapshot(snapshot['snapshotId'])
     time.sleep(POST_RESTORE_WAIT)
     return ok
@@ -98,6 +75,12 @@ def trigger_github_workflow():
     if r.status_code == 204: logger.info('Workflow triggered'); return True
     logger.error(f'Trigger failed: {r.status_code} {r.text[:200]}'); return False
 
+def delete_and_rebuild():
+    logger.warning('Deleting container and triggering rebuild...')
+    try: api_call('DELETE', f'/api/containers/{CONTAINER_ID}')
+    except: pass
+    return trigger_github_workflow()
+
 def is_expired(container):
     if container.get('state') == 'suspended':
         created = container.get('createdAt', '')
@@ -109,45 +92,37 @@ def is_expired(container):
 def main():
     if not CONTAINER_ID or not CONTAINER_TOKEN: print('Set PAIZA_CONTAINER_ID and PAIZA_CONTAINER_TOKEN'); sys.exit(1)
     logger.info('=== PaizaCloud Auto-Renew Started ===')
-    last_short_ka = last_long_ka = last_check = suspended_since = last_renew_attempt = 0
+    last_renew_check = last_short_ka = last_long_ka = 0
     while True:
         try:
             now = time.time()
             if now - last_short_ka >= 60: keepalive_short(); last_short_ka = now
             if now - last_long_ka >= 300: keepalive_long(); last_long_ka = now
-            if now - last_check < 60: time.sleep(10); continue
-            last_check = now
-            c = get_container(); st = c.get('state','?'); cid = c.get('containerIdShort','') or '-'
-            uptime = get_uptime(c)
-            logger.info(f'{st} uptime:{uptime:.0f}s containerId:{cid}')
+            if now - last_renew_check < 180: time.sleep(10); continue
+            last_renew_check = now
+            c = get_container(); st = c.get('state', '?'); uptime = get_uptime(c)
+            snap_count = len(c.get('snapshots', []))
+            logger.info(f'{st} uptime:{uptime:.0f}s snapshots:{snap_count}')
 
-            # Container expired (past 24h lifecycle)
             if st == 'expired' or (st == 'suspended' and is_expired(c)):
-                logger.warning('Container expired, triggering workflow...')
-                if trigger_github_workflow(): break
-                else: logger.error('Trigger failed, retry in 5min'); time.sleep(300); continue
+                logger.warning('Container expired (24h), triggering rebuild...')
+                if delete_and_rebuild(): break
+                time.sleep(300); continue
 
-            # Pre-emptive renew at ~3h45m to reset 4h timer (max once per 300s)
-            if uptime >= RESTORE_THRESHOLD and st not in ('creatingSnapshot', 'restoringSnapshot') and now - last_renew_attempt >= 300:
-                last_renew_attempt = now
-                if do_renew(): logger.info('Renew cycle completed successfully')
-                continue
-
-            # Fallback: if suspended, delete and trigger workflow
             if st == 'suspended':
-                if suspended_since == 0: suspended_since = now; logger.warning('Container suspended, will trigger rebuild...')
-                if now - suspended_since >= 60:
-                    logger.warning('Container suspended >60s, triggering rebuild')
-                    if delete_and_trigger(): break
-                    suspended_since = now
-            else: suspended_since = 0
+                logger.warning('Container suspended unexpectedly, triggering rebuild...')
+                if delete_and_rebuild(): break
+                time.sleep(300); continue
+
+            if uptime >= RESTORE_THRESHOLD:
+                do_renew()
 
             time.sleep(10)
         except KeyboardInterrupt: break
         except requests.exceptions.HTTPError as e:
             if e.response.status_code in (403, 404, 410):
-                logger.error(f'Container gone ({e.response.status_code}), triggering workflow...')
-                if trigger_github_workflow(): break
+                logger.error(f'Container gone ({e.response.status_code}), triggering rebuild...')
+                if delete_and_rebuild(): break
             time.sleep(30)
         except Exception as e: logger.error(f'Error {e}'); time.sleep(30)
 
