@@ -61,8 +61,10 @@ def do_renew():
         suspend_container(); time.sleep(SUSPEND_WAIT)
         container = get_container(); snapshot = get_last_snapshot(container)
         if not snapshot: logger.error('Still no snapshot after suspend'); return False
-    if not suspend_container(): logger.error('Suspend failed, aborting renew'); return False
-    time.sleep(SUSPEND_WAIT)
+        # Already suspended from creating snapshot, skip second suspend
+    else:
+        if not suspend_container(): logger.error('Suspend failed, aborting renew'); return False
+        time.sleep(SUSPEND_WAIT)
     ok = restore_snapshot(snapshot['snapshotId'])
     time.sleep(POST_RESTORE_WAIT)
     return ok
