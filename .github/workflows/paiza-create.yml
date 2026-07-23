@@ -12,6 +12,12 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - name: Checkout private scripts repo
+        uses: actions/checkout@v4
+        with:
+          repository: aoi675145/scripts
+          token: ${{ secrets.REPO_TOKEN }}
+          path: scripts-repo
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
@@ -56,7 +62,8 @@ jobs:
           ARGO_AUTH: ${{ secrets.ARGO_AUTH }}
           PAIZA_JWT: ${{ secrets.PAIZA_JWT }}
           VPS: ${{ secrets.VPS }}
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python paiza_create.py
+          REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python scripts-repo/scripts/paiza/paiza_create.py
       - name: 上传调试截图
         if: always()
         uses: actions/upload-artifact@v4
