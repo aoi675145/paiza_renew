@@ -1,8 +1,6 @@
 name: PaizaCloud Auto-Create
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 1 */1 *'
 jobs:
   create:
     runs-on: ubuntu-latest
