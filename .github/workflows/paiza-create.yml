@@ -48,7 +48,11 @@ jobs:
       - name: 安装 Python 依赖
         run: |
           pip install selenium requests SpeechRecognition pydub chromedriver-autoinstaller paramiko
-          python -c "import chromedriver_autoinstaller; chromedriver_autoinstaller.install()"
+          sudo rm -f /usr/bin/chromedriver /usr/local/bin/chromedriver
+          DRIVER_PATH=$(python -c "import chromedriver_autoinstaller; print(chromedriver_autoinstaller.install())")
+          sudo ln -sf "$DRIVER_PATH" /usr/local/bin/chromedriver
+          chromedriver --version
+          google-chrome --version
           sudo apt-get install -y -qq sshpass
       - name: 执行脚本
         env:
