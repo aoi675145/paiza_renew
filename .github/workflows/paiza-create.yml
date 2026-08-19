@@ -31,7 +31,7 @@ jobs:
           sudo rm -f /etc/resolv.conf
           echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 1.0.0.1" | sudo tee /etc/resolv.conf
           curl -s --max-time 10 https://www.cloudflare.com/cdn-cgi/trace | grep -E 'warp=|loc=' || true
-      - name: 修复 apt 源（绕过卡死的 azure 镜像）
+      - name: 修复 apt 源
         run: |
           # 直接整体重写 ubuntu.sources 为官方 https 源（deb822 格式），
           # 不再依赖 mirror+file:///etc/apt/apt-mirrors.txt（azure 镜像，经常超时）
