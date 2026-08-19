@@ -31,9 +31,29 @@ jobs:
           sudo rm -f /etc/resolv.conf
           echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 1.0.0.1" | sudo tee /etc/resolv.conf
           curl -s --max-time 10 https://www.cloudflare.com/cdn-cgi/trace | grep -E 'warp=|loc=' || true
+      - name: 修复 apt 源（绕过卡死的 azure 镜像）
+        run: |
+          # 直接整体重写 ubuntu.sources 为官方 https 源（deb822 格式），
+          # 不再依赖 mirror+file:///etc/apt/apt-mirrors.txt（azure 镜像，经常超时）
+          sudo tee /etc/apt/sources.list.d/ubuntu.sources > /dev/null <<'EOF'
+          Types: deb
+          URIs: https://archive.ubuntu.com/ubuntu/
+          Suites: noble noble-updates noble-backports
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: https://security.ubuntu.com/ubuntu/
+          Suites: noble-security
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+          sudo rm -f /etc/apt/apt-mirrors.txt
+
       - name: 安装系统依赖
         run: |
-          sudo apt-get update -qq
+          APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15"
+          sudo apt-get update -qq $APT_OPTS
           sudo apt-get install -y -qq xvfb p7zip-full
           curl -L -o /tmp/ffmpeg.tar.xz https://github.com/akina005/akina/releases/download/ffmpeg/ffmpeg-release-amd64-static.tar.xz
           mkdir -p /tmp/ffmpeg-static
@@ -41,9 +61,10 @@ jobs:
           sudo ln -sf /tmp/ffmpeg-static/ffmpeg /usr/local/bin/ffmpeg
           sudo ln -sf /tmp/ffmpeg-static/ffprobe /usr/local/bin/ffprobe
           ffmpeg -version
-          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-          sudo apt-get update -qq
+          # noble 已移除 apt-key，改用 keyring 方式；Chrome 源改 https
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update -qq $APT_OPTS
           sudo apt-get install -y -qq google-chrome-stable
       - name: 安装 Python 依赖
         run: |
@@ -53,7 +74,7 @@ jobs:
           sudo ln -sf "$DRIVER_PATH" /usr/local/bin/chromedriver
           chromedriver --version
           google-chrome --version
-          sudo apt-get install -y -qq sshpass
+          sudo apt-get install -y -qq -o Acquire::Retries=3 sshpass
       - name: 执行脚本
         env:
           TG_BOT: ${{ secrets.TG_BOT }}
