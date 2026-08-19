@@ -60,7 +60,7 @@ jobs:
           sudo ln -sf /tmp/ffmpeg-static/ffprobe /usr/local/bin/ffprobe
           ffmpeg -version
           # noble 已移除 apt-key，改用 keyring 方式；Chrome 源改 https
-          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/google-chrome.gpg
           echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update -qq $APT_OPTS
           sudo apt-get install -y -qq google-chrome-stable
