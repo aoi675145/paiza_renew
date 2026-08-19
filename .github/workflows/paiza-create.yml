@@ -19,22 +19,8 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: 开启 WARP
-        uses: fscarmen/warp-on-actions@v1.3
-        with:
-          stack: dual
-          mode: client
-      - name: 修复 DNS
-        run: |
-          sudo systemctl stop systemd-resolved 2>/dev/null || true
-          sudo systemctl disable systemd-resolved 2>/dev/null || true
-          sudo rm -f /etc/resolv.conf
-          echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 1.0.0.1" | sudo tee /etc/resolv.conf
-          curl -s --max-time 10 https://www.cloudflare.com/cdn-cgi/trace | grep -E 'warp=|loc=' || true
       - name: 修复 apt 源
         run: |
-          # 直接整体重写 ubuntu.sources 为官方 https 源（deb822 格式），
-          # 不再依赖 mirror+file:///etc/apt/apt-mirrors.txt（azure 镜像，经常超时）
           sudo tee /etc/apt/sources.list.d/ubuntu.sources > /dev/null <<'EOF'
           Types: deb
           URIs: https://archive.ubuntu.com/ubuntu/
@@ -50,6 +36,18 @@ jobs:
           EOF
           sudo rm -f /etc/apt/apt-mirrors.txt
 
+      - name: 开启 WARP
+        uses: fscarmen/warp-on-actions@v1.3
+        with:
+          stack: dual
+          mode: client
+      - name: 修复 DNS
+        run: |
+          sudo systemctl stop systemd-resolved 2>/dev/null || true
+          sudo systemctl disable systemd-resolved 2>/dev/null || true
+          sudo rm -f /etc/resolv.conf
+          echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 1.0.0.1" | sudo tee /etc/resolv.conf
+          curl -s --max-time 10 https://www.cloudflare.com/cdn-cgi/trace | grep -E 'warp=|loc=' || true
       - name: 安装系统依赖
         run: |
           APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15"
