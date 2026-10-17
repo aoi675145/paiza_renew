@@ -67,7 +67,7 @@ jobs:
           fi
           exit $rc
 
-      - name: 探针兜底
+      - name: 探针 / 代理兜底
         if: always() && steps.decide.outputs.action != 'CREATE'
         continue-on-error: true
         env:
@@ -77,7 +77,7 @@ jobs:
           NZ_UUID: ${{ secrets.NZ_UUID }}
           ARGO_DOMAIN: ${{ secrets.ARGO_DOMAIN }}
           ARGO_AUTH: ${{ secrets.ARGO_AUTH }}
-        run: python scripts-repo/scripts/paiza/paiza.py --ensure-agent
+        run: python scripts-repo/scripts/paiza/paiza.py --ensure-agent --ensure-app
 
   create:
     needs: reconcile
@@ -178,7 +178,9 @@ jobs:
           NEZHA_SERVER: ${{ secrets.NEZHA_SERVER }}
           NEZHA_KEY: ${{ secrets.NEZHA_KEY }}
           NZ_UUID: ${{ secrets.NZ_UUID }}
-        run: python scripts-repo/scripts/paiza/paiza.py --ensure-agent --ensure-files
+          ARGO_DOMAIN: ${{ secrets.ARGO_DOMAIN }}
+          ARGO_AUTH: ${{ secrets.ARGO_AUTH }}
+        run: python scripts-repo/scripts/paiza/paiza.py --ensure-agent --ensure-app --ensure-files
       - name: 上传调试截图
         if: always()
         uses: actions/upload-artifact@v4
