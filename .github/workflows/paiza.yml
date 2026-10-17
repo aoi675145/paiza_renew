@@ -67,6 +67,18 @@ jobs:
           fi
           exit $rc
 
+      - name: 探针兜底
+        if: always() && steps.decide.outputs.action != 'CREATE'
+        continue-on-error: true
+        env:
+          PAIZA_JWT: ${{ secrets.PAIZA_JWT }}
+          NEZHA_SERVER: ${{ secrets.NEZHA_SERVER }}
+          NEZHA_KEY: ${{ secrets.NEZHA_KEY }}
+          NZ_UUID: ${{ secrets.NZ_UUID }}
+          ARGO_DOMAIN: ${{ secrets.ARGO_DOMAIN }}
+          ARGO_AUTH: ${{ secrets.ARGO_AUTH }}
+        run: python scripts-repo/scripts/paiza/paiza.py --ensure-agent
+
   create:
     needs: reconcile
     if: always() && (needs.reconcile.outputs.action == 'CREATE' || needs.reconcile.outputs.need_create == 'true')
