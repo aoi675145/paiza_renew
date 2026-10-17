@@ -100,7 +100,10 @@ jobs:
         continue-on-error: true
         env:
           PAIZA_JWT: ${{ secrets.PAIZA_JWT }}
-        run: python scripts-repo/scripts/paiza/paiza_provision.py --ensure-files
+          NEZHA_SERVER: ${{ secrets.NEZHA_SERVER }}
+          NEZHA_KEY: ${{ secrets.NEZHA_KEY }}
+          NZ_UUID: ${{ secrets.NZ_UUID }}
+        run: python scripts-repo/scripts/paiza/paiza_provision.py --ensure-agent --ensure-files
       - name: 上传调试截图
         if: always()
         uses: actions/upload-artifact@v4
