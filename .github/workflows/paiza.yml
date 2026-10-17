@@ -1,18 +1,81 @@
-name: PaizaCloud Auto-Create
+name: PaizaCloud
+
 on:
   workflow_dispatch:
+    inputs:
+      force_create:
+        description: 强制重建容器
+        required: false
+        default: 'false'
+
 concurrency:
-  group: paiza-create
+  group: paiza
   cancel-in-progress: false
+
 jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      actions: write
+      contents: read
+    outputs:
+      action: ${{ steps.decide.outputs.action }}
+      need_create: ${{ steps.apply.outputs.need_create }}
+    steps:
+      - name: Checkout private scripts repo
+        uses: actions/checkout@v4
+        with:
+          repository: aoi675145/scripts
+          token: ${{ secrets.REPO_TOKEN }}
+          path: scripts-repo
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: 判定需要做什么
+        id: decide
+        env:
+          PAIZA_JWT: ${{ secrets.PAIZA_JWT }}
+          FORCE_CREATE: ${{ github.event.inputs.force_create }}
+        run: python scripts-repo/scripts/paiza/paiza.py --check >> "$GITHUB_OUTPUT"
+      - name: 判定结果
+        run: echo "action=${{ steps.decide.outputs.action }} reason=${{ steps.decide.outputs.reason }}"
+      - name: 准备依赖
+        if: steps.decide.outputs.action != 'CREATE'
+        run: pip install --quiet paramiko
+      - name: 准备 SSH 私钥
+        env:
+          PAIZA_SSH_KEY: ${{ secrets.PAIZA_SSH_KEY }}
+        run: |
+          mkdir -p "$HOME/.paiza"
+          printf '%s\n' "$PAIZA_SSH_KEY" > "$HOME/.paiza/paiza_key"
+          chmod 600 "$HOME/.paiza/paiza_key"
+          echo "PAIZA_SSH_KEY_PATH=$HOME/.paiza/paiza_key" >> "$GITHUB_ENV"
+      - name: 执行
+        id: apply
+        env:
+          PAIZA_JWT: ${{ secrets.PAIZA_JWT }}
+          TG_BOT: ${{ secrets.TG_BOT }}
+          ACTION: ${{ steps.decide.outputs.action }}
+          REASON: ${{ steps.decide.outputs.reason }}
+        run: |
+          set +e
+          python scripts-repo/scripts/paiza/paiza.py --apply 2>&1 | tee /tmp/apply.log
+          rc=${PIPESTATUS[0]}
+          if grep -q 'NEED_CREATE=1' /tmp/apply.log; then
+            echo "need_create=true" >> "$GITHUB_OUTPUT"
+          fi
+          exit $rc
+
   create:
+    needs: reconcile
+    if: always() && (needs.reconcile.outputs.action == 'CREATE' || needs.reconcile.outputs.need_create == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       actions: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
       - name: Checkout private scripts repo
         uses: actions/checkout@v4
         with:
@@ -94,7 +157,7 @@ jobs:
           ARGO_AUTH: ${{ secrets.ARGO_AUTH }}
           PAIZA_JWT: ${{ secrets.PAIZA_JWT }}
           REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python scripts-repo/scripts/paiza/paiza_create.py
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python scripts-repo/scripts/paiza/paiza.py create
       - name: 容器内维护兜底
         if: always()
         continue-on-error: true
@@ -103,13 +166,21 @@ jobs:
           NEZHA_SERVER: ${{ secrets.NEZHA_SERVER }}
           NEZHA_KEY: ${{ secrets.NEZHA_KEY }}
           NZ_UUID: ${{ secrets.NZ_UUID }}
-        run: python scripts-repo/scripts/paiza/paiza_provision.py --ensure-agent --ensure-files
+        run: python scripts-repo/scripts/paiza/paiza.py --ensure-agent --ensure-files
       - name: 上传调试截图
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: debug-screenshots
-          path: "screenshots/*.png"
+          path: "scripts-repo/scripts/paiza/screenshots/*.png"
+
+  cleanup:
+    needs: [reconcile, create]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
       - name: 清理运行记录
         if: always()
         uses: Mattraks/delete-workflow-runs@v2
@@ -118,4 +189,4 @@ jobs:
           repository: ${{ github.repository }}
           delete_workflow_pattern: ${{ github.workflow }}
           retain_days: 0
-          keep_minimum_runs: 6
+          keep_minimum_runs: 1
