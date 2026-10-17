@@ -3,3 +3,7 @@ __pycache__/
 screenshots/
 paiza_config.txt
 xgp.txt
+paiza_key
+paiza_key.pub
+_vps_config.txt
+_cur.json
