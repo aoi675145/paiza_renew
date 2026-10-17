@@ -1,6 +1,9 @@
 name: PaizaCloud Auto-Create
 on:
   workflow_dispatch:
+concurrency:
+  group: paiza-create
+  cancel-in-progress: false
 jobs:
   create:
     runs-on: ubuntu-latest
@@ -72,7 +75,15 @@ jobs:
           sudo ln -sf "$DRIVER_PATH" /usr/local/bin/chromedriver
           chromedriver --version
           google-chrome --version
-          sudo apt-get install -y -qq -o Acquire::Retries=3 sshpass
+      - name: 准备 SSH 私钥
+        env:
+          PAIZA_SSH_KEY: ${{ secrets.PAIZA_SSH_KEY }}
+        run: |
+          mkdir -p "$HOME/.paiza"
+          printf '%s\n' "$PAIZA_SSH_KEY" > "$HOME/.paiza/paiza_key"
+          chmod 600 "$HOME/.paiza/paiza_key"
+          echo "PAIZA_SSH_KEY_PATH=$HOME/.paiza/paiza_key" >> "$GITHUB_ENV"
+          wc -c < "$HOME/.paiza/paiza_key"
       - name: 执行脚本
         env:
           TG_BOT: ${{ secrets.TG_BOT }}
@@ -82,9 +93,14 @@ jobs:
           ARGO_DOMAIN: ${{ secrets.ARGO_DOMAIN }}
           ARGO_AUTH: ${{ secrets.ARGO_AUTH }}
           PAIZA_JWT: ${{ secrets.PAIZA_JWT }}
-          VPS: ${{ secrets.VPS }}
           REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
         run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python scripts-repo/scripts/paiza/paiza_create.py
+      - name: 容器内维护兜底
+        if: always()
+        continue-on-error: true
+        env:
+          PAIZA_JWT: ${{ secrets.PAIZA_JWT }}
+        run: python scripts-repo/scripts/paiza/paiza_provision.py --ensure-files
       - name: 上传调试截图
         if: always()
         uses: actions/upload-artifact@v4
