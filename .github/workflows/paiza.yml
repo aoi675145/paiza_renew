@@ -181,12 +181,6 @@ jobs:
           ARGO_DOMAIN: ${{ secrets.ARGO_DOMAIN }}
           ARGO_AUTH: ${{ secrets.ARGO_AUTH }}
         run: python scripts-repo/scripts/paiza/paiza.py --ensure-agent --ensure-app --ensure-files
-      - name: 上传调试截图
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-screenshots
-          path: "scripts-repo/scripts/paiza/screenshots/*.png"
 
   cleanup:
     needs: [reconcile, create]
